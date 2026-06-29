@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/responsive/responsive.dart';
+import '../../core/utils/format.dart';
 import '../wallet/wallet_controller.dart';
 
 /// Delegate/undelegate, claim accrued reward, and register as a promoter — all client-signed.
@@ -107,7 +108,7 @@ class _StakingPageState extends State<StakingPage> {
                     children: [
                       Text('rewards'.tr, style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      Obx(() => Text('${'accrued_reward'.tr}: ${_wallet.accruedReward.value}')),
+                      Obx(() => Text('${'accrued_reward'.tr}: ${prettyAmount(_wallet.accruedReward.value)} ${AppConfig.unit}')),
                       const SizedBox(height: 8),
                       FilledButton.tonalIcon(
                         onPressed: _busy.isNotEmpty ? null : () => _run('claim', _wallet.claimReward, 'submitted'.tr),

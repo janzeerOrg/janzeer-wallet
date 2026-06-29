@@ -9,6 +9,7 @@ class AppConfig {
   static const int voteForId = 1; // VoteType.FOR
   static const int voteAgainstId = 2; // VoteType.AGAINST
   static const int maxMemo = 256; // TransferTransactionValidator.MAX_DATA_SIZE
+  static const String unit = 'JNZ'; // native-coin ticker (display only)
 
   /// Default node REST base URL (overridable in Settings). `10.0.2.2` is the host loopback from the Android
   /// emulator; desktop/web use `localhost`.

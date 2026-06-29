@@ -106,9 +106,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
-                Icon(Icons.account_balance_wallet, size: 56, color: Theme.of(context).colorScheme.primary),
+                Center(
+                  child: Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.tertiary],
+                      ),
+                    ),
+                    child: Icon(Icons.account_balance_wallet, size: 40, color: Theme.of(context).colorScheme.onPrimary),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                Text('app_name'.tr, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+                Text('app_name'.tr, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text('welcome_sub'.tr, textAlign: TextAlign.center),
                 const SizedBox(height: 24),

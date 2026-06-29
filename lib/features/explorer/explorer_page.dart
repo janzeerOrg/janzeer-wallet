@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/config/app_config.dart';
+import '../../core/utils/format.dart';
 import '../wallet/wallet_controller.dart';
 
 /// Read-only recent transfers for this wallet (sender or recipient), newest first.
@@ -55,8 +57,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
                   backgroundColor: (outgoing ? Colors.red : Colors.green).withValues(alpha: 0.15),
                   child: Icon(outgoing ? Icons.north_east : Icons.south_west, color: outgoing ? Colors.red : Colors.green),
                 ),
-                title: Text('${tx['amount'] ?? ''}'),
-                subtitle: Text('${outgoing ? tx['recipientAddress'] : tx['senderAddress']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text('${outgoing ? '-' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')} ${AppConfig.unit}',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: outgoing ? Colors.red : Colors.green)),
+                subtitle: Text(shortHash('${outgoing ? tx['recipientAddress'] : tx['senderAddress']}', head: 10, tail: 8)),
                 trailing: Text(when, style: Theme.of(context).textTheme.bodySmall),
               );
             },
