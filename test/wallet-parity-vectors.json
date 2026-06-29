@@ -1,0 +1,41 @@
+{
+  "hd": {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "passphrase": "",
+    "seedHex": "af841306780d4772476c3d5a2fe524254568f18f4722b5ecfe8de54eb37f4c3501513767d3972f0ef459bf5ca162a520318a07a9281964a282b9732c71d322c2",
+    "path": "m/0/0/0",
+    "privHex": "4caafc3f2ad4fc41e69d8f7375706a4d6db7fc9d9a337f051a82ae8ba59deb91",
+    "pubHex": "03c4c234300f048fdc98b87db8b675bdc764b5b2b849766e61255a4ff8993dee7b",
+    "address": "0x06e1c0fa9955a700876f8cb0acc7f13fba9fb8ba"
+  },
+  "rawKey": {
+    "privHex": "6deadaf98b65c46612b57db1551da40d79ed6a759f23f9cf137612f8ef238efc",
+    "pubHex": "02ca512ee8960951107ab2007a6b00ae349930573330975035fdb53f0853e9bf14",
+    "address": "0x74d2bedc03ae5deb6fc63fbf7bb87e86f034b274"
+  },
+  "transferTx": {
+    "timestamp": 1700000000000,
+    "fee": "0.01",
+    "nonce": 0,
+    "senderAddress": "0x74d2bedc03ae5deb6fc63fbf7bb87e86f034b274",
+    "publicKey": "02ca512ee8960951107ab2007a6b00ae349930573330975035fdb53f0853e9bf14",
+    "recipientAddress": "0x598b1301acef3baba6ce25e38dd17b723f7b98b1",
+    "amount": "1.5",
+    "data": "hello janzeer",
+    "preimageHex": "0000018bcfe5680000000000000f424000000000000000003078373464326265646330336165356465623666633633666266376262383765383666303334623237340000000008f0d18030783539386231333031616365663362616261366365323565333864643137623732336637623938623168656c6c6f206a616e7a656572",
+    "hash": "1bc785ed88b7c1a956156df8e62a8423d933aa2baaa6dfe334287293c6686670",
+    "signature": "MEUCIQC6+MZxORz/rX8ADN56cFNyC3VAGc3uakuKwQ8Xt8K+bAIgbIWMTJv1738dwiX8xV7XCJT+caXGezWvi5cckRHZOkw="
+  },
+  "voteTx": {
+    "timestamp": 1700000000000, "fee": "3", "nonce": 1, "senderAddress": "0x74d2bedc03ae5deb6fc63fbf7bb87e86f034b274", "publicKey": "02ca512ee8960951107ab2007a6b00ae349930573330975035fdb53f0853e9bf14",
+    "voteTypeId": 1, "promoterKey": "02406195b3b3eadde2d9f6cdb2ec288498b321c5b981b8aa4463a0d7ae79b69f02", "hash": "9ea3eafefe4cd6861a7cde43e7afea107d300988f67882beeec43a67c3c7a99d", "signature": "MEUCIQDZtS4ucJaS4HJgRnjfl+ueMEvbZTrPCUOdl/2r6hDlhAIgUp+ab7plp1fo+E1hhUSCk6Z79WkA/zxQJE7qj3vGm9c="
+  },
+  "promoterTx": {
+    "timestamp": 1700000000000, "fee": "3", "nonce": 2, "senderAddress": "0x74d2bedc03ae5deb6fc63fbf7bb87e86f034b274", "publicKey": "02ca512ee8960951107ab2007a6b00ae349930573330975035fdb53f0853e9bf14",
+    "amount": "10", "promoterKey": "02406195b3b3eadde2d9f6cdb2ec288498b321c5b981b8aa4463a0d7ae79b69f02", "hash": "bcb5ad7f6f40695d1eb3a9f135285779f729548536dc7028e19eb4a5a2fc17bb", "signature": "MEUCIQCQG4r/IWAY9n9foqRfqN5WI1Slxwpy3AEtuAX/ksKRYAIga6FjEAMwBBSJcg5MBWPTqQxJPVpDBLWNjGdBuItTWYM="
+  },
+  "claimRewardTx": {
+    "timestamp": 1700000000000, "fee": "0.01", "nonce": 3, "senderAddress": "0x74d2bedc03ae5deb6fc63fbf7bb87e86f034b274", "publicKey": "02ca512ee8960951107ab2007a6b00ae349930573330975035fdb53f0853e9bf14",
+    "hash": "a698371ba6c2aeaad8c3b0b922b41e82b6f561d3086e98f40b9af2e6ade758fa", "signature": "MEQCIATveOEHRtJROncCBvb5iT7fE8BSzHcVLV818AuUwHFNAiB7gIRk/7kLuY2ynVN1ljylrzy2EYDA6/Zs7VviGnWhNQ=="
+  }
+}

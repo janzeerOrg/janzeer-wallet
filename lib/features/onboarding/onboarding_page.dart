@@ -1,0 +1,151 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../../app/routes/app_routes.dart';
+import '../../core/responsive/responsive.dart';
+import '../wallet/wallet_controller.dart';
+
+class OnboardingPage extends StatefulWidget {
+  const OnboardingPage({super.key});
+  @override
+  State<OnboardingPage> createState() => _OnboardingPageState();
+}
+
+class _OnboardingPageState extends State<OnboardingPage> {
+  final _wallet = Get.find<WalletController>();
+  bool _create = true;
+  bool _busy = false;
+  final _mnemonic = TextEditingController();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _mnemonic.dispose();
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  String? _validatePassword() {
+    if (_password.text.length < 8) return 'password_too_short'.tr;
+    if (_password.text != _confirm.text) return 'passwords_mismatch'.tr;
+    return null;
+  }
+
+  Future<void> _submit() async {
+    final err = _validatePassword();
+    if (err != null) return _toast(err);
+    if (!_create && _mnemonic.text.trim().isEmpty) return _toast('invalid_phrase'.tr);
+    setState(() => _busy = true);
+    try {
+      if (_create) {
+        final mnemonic = await _wallet.createWallet(_password.text);
+        if (mounted) await _showBackup(mnemonic);
+      } else {
+        await _wallet.importWallet(_mnemonic.text, _password.text);
+      }
+      Get.offAllNamed(Routes.home);
+    } catch (e) {
+      _toast(_msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _showBackup(String mnemonic) async {
+    await Get.dialog<void>(
+      AlertDialog(
+        title: Text('backup_title'.tr),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('backup_warn'.tr),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(mnemonic, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.6)),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              _wallet.confirmBackup();
+              Get.back<void>();
+            },
+            child: Text('saved_it'.tr),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  String _msg(Object e) {
+    final s = e is String ? e : e.toString().replaceFirst('Exception: ', '');
+    // Controller throws translation keys for known cases.
+    final known = {'invalid_phrase', 'incorrect_password'};
+    return known.contains(s) ? s.tr : s;
+  }
+
+  void _toast(String m) => Get.snackbar('', m, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: ContentColumn(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
+                Icon(Icons.account_balance_wallet, size: 56, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 16),
+                Text('app_name'.tr, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Text('welcome_sub'.tr, textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                SegmentedButton<bool>(
+                  segments: [
+                    ButtonSegment(value: true, label: Text('create_wallet'.tr)),
+                    ButtonSegment(value: false, label: Text('import_wallet'.tr)),
+                  ],
+                  selected: {_create},
+                  onSelectionChanged: (s) => setState(() => _create = s.first),
+                ),
+                const SizedBox(height: 20),
+                if (!_create) ...[
+                  TextField(
+                    controller: _mnemonic,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: InputDecoration(labelText: 'recovery_phrase'.tr, hintText: 'recovery_hint'.tr),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(controller: _password, obscureText: true, decoration: InputDecoration(labelText: 'password'.tr)),
+                const SizedBox(height: 12),
+                TextField(controller: _confirm, obscureText: true, decoration: InputDecoration(labelText: 'confirm_password'.tr)),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _submit,
+                  icon: _busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(_create ? Icons.add : Icons.download),
+                  label: Text(_create ? 'create_wallet'.tr : 'import_wallet'.tr),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
