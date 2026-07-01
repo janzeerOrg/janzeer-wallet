@@ -19,8 +19,6 @@ class WalletController extends GetxController {
 
   final RxString balance = '0'.obs;
   final RxInt nonce = 0.obs;
-  final RxString accruedReward = '0'.obs;
-  final Rxn<Map<String, dynamic>> delegation = Rxn<Map<String, dynamic>>();
   final RxBool loading = false.obs;
 
   /// Shown once after creation so the user can write it down; cleared on confirm.
@@ -92,8 +90,6 @@ class WalletController extends GetxController {
     address.value = '';
     balance.value = '0';
     nonce.value = 0;
-    accruedReward.value = '0';
-    delegation.value = null;
   }
 
   void confirmBackup() => backupMnemonic = null;
@@ -104,8 +100,6 @@ class WalletController extends GetxController {
     try {
       balance.value = await _api.getBalance(address.value);
       nonce.value = await _api.getNonce(address.value);
-      accruedReward.value = await _api.getAccruedReward(address.value);
-      delegation.value = await _api.getDelegation(address.value);
     } finally {
       loading.value = false;
     }
@@ -120,6 +114,7 @@ class WalletController extends GetxController {
   Future<void> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
     _ensureUnlocked();
     final body = jc.buildSignedTransfer(
+      networkId: AppConfig.networkId,
       timestamp: _now,
       fee: (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
       nonce: await _api.getNonce(address.value),
@@ -134,46 +129,29 @@ class WalletController extends GetxController {
     await reload();
   }
 
-  Future<void> delegate(String promoterKey) async {
-    _ensureUnlocked();
-    final body = jc.buildSignedVote(
-      timestamp: _now, fee: AppConfig.voteFeeFor, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub, voteTypeId: AppConfig.voteForId,
-      promoterKey: promoterKey.trim(), privHex: _priv,
-    );
-    await _api.postVote(body);
-    await reload();
-  }
-
-  Future<void> undelegate(String promoterKey) async {
-    _ensureUnlocked();
-    final body = jc.buildSignedVote(
-      timestamp: _now, fee: AppConfig.voteFeeAgainst, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub, voteTypeId: AppConfig.voteAgainstId,
-      promoterKey: promoterKey.trim(), privHex: _priv,
-    );
-    await _api.postVote(body);
-    await reload();
-  }
-
-  Future<void> claimReward() async {
-    _ensureUnlocked();
-    final body = jc.buildSignedClaimReward(
-      timestamp: _now, fee: AppConfig.minimumFee, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub, privHex: _priv,
-    );
-    await _api.postClaimReward(body);
-    await reload();
-  }
-
+  /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
   Future<void> registerPromoter(String promoterKey) async {
     _ensureUnlocked();
     final body = jc.buildSignedPromoter(
+      networkId: AppConfig.networkId,
       timestamp: _now, fee: AppConfig.promoterFee, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub, amount: AppConfig.promoterStake,
+      senderAddress: address.value, publicKey: _pub, amount: AppConfig.promoterDeposit,
       promoterKey: promoterKey.trim(), privHex: _priv,
     );
     await _api.postPromoter(body);
+    await reload();
+  }
+
+  /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
+  Future<void> exitPromoter(String promoterKey) async {
+    _ensureUnlocked();
+    final body = jc.buildSignedExitPromoter(
+      networkId: AppConfig.networkId,
+      timestamp: _now, fee: AppConfig.minimumFee, nonce: await _api.getNonce(address.value),
+      senderAddress: address.value, publicKey: _pub,
+      promoterKey: promoterKey.trim(), privHex: _priv,
+    );
+    await _api.postExitPromoter(body);
     await reload();
   }
 

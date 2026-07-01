@@ -13,9 +13,8 @@ void main() {
   final hd = v['hd'] as Map<String, dynamic>;
   final rawKey = v['rawKey'] as Map<String, dynamic>;
   final t = v['transferTx'] as Map<String, dynamic>;
-  final vote = v['voteTx'] as Map<String, dynamic>;
   final promoter = v['promoterTx'] as Map<String, dynamic>;
-  final claim = v['claimRewardTx'] as Map<String, dynamic>;
+  final exit = v['exitPromoterTx'] as Map<String, dynamic>;
 
   test('HD derivation: mnemonic -> seed -> m/0/0/0', () {
     expect(bytesToHex(mnemonicToSeed(hd['mnemonic'] as String, passphrase: hd['passphrase'] as String)), hd['seedHex']);
@@ -42,15 +41,6 @@ void main() {
     expect(signHash(hash, rawKey['privHex'] as String), t['signature']);
   });
 
-  test('VoteTx hash + signature', () {
-    final s = buildSignedVote(
-        timestamp: vote['timestamp'] as int, fee: vote['fee'] as String, nonce: vote['nonce'] as int,
-        senderAddress: vote['senderAddress'] as String, publicKey: vote['publicKey'] as String,
-        voteTypeId: vote['voteTypeId'] as int, promoterKey: vote['promoterKey'] as String, privHex: rawKey['privHex'] as String);
-    expect(s['hash'], vote['hash']);
-    expect(s['senderSignature'], vote['signature']);
-  });
-
   test('PromoterTx hash + signature', () {
     final s = buildSignedPromoter(
         timestamp: promoter['timestamp'] as int, fee: promoter['fee'] as String, nonce: promoter['nonce'] as int,
@@ -60,11 +50,18 @@ void main() {
     expect(s['senderSignature'], promoter['signature']);
   });
 
-  test('ClaimRewardTx hash + signature', () {
-    final s = buildSignedClaimReward(
-        timestamp: claim['timestamp'] as int, fee: claim['fee'] as String, nonce: claim['nonce'] as int,
-        senderAddress: claim['senderAddress'] as String, publicKey: claim['publicKey'] as String, privHex: rawKey['privHex'] as String);
-    expect(s['hash'], claim['hash']);
-    expect(s['senderSignature'], claim['signature']);
+  test('ExitPromoterTx hash + signature', () {
+    final s = buildSignedExitPromoter(
+        timestamp: exit['timestamp'] as int, fee: exit['fee'] as String, nonce: exit['nonce'] as int,
+        senderAddress: exit['senderAddress'] as String, publicKey: exit['publicKey'] as String,
+        promoterKey: exit['promoterKey'] as String, privHex: rawKey['privHex'] as String);
+    expect(s['hash'], exit['hash']);
+    expect(s['senderSignature'], exit['signature']);
+  });
+
+  test('EIP-55 checksum overlay (display only; canonical stays lowercase)', () {
+    // Canonical address (what gets signed) is lowercase; the checksum form validates but never changes bytes.
+    expect(isChecksumValid(rawKey['address'] as String), isTrue);
+    expect(toChecksumAddress(rawKey['address'] as String).toLowerCase(), rawKey['address']);
   });
 }

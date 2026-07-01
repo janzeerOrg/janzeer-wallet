@@ -39,14 +39,6 @@ class NodeApi {
   Future<String> getBalance(String address) async => '${await _get('wallets/$address', notFound: '0')}';
   Future<int> getNonce(String address) async =>
       int.parse('${await _get('wallets/$address/nonce', notFound: 0)}');
-  Future<String> getAccruedReward(String address) async =>
-      '${await _get('wallets/$address/accruedReward', notFound: '0')}';
-
-  /// Current delegation (VoteResponse) or null if not delegating.
-  Future<Map<String, dynamic>?> getDelegation(String address) async {
-    final p = await _get('wallets/promoters/$address', notFound: null);
-    return p == null ? null : Map<String, dynamic>.from(p as Map);
-  }
 
   /// Recent transfers (sender or recipient), newest first → { total, list, ... }.
   Future<Map<String, dynamic>> getTransfers(String address, {int size = 15}) async {
@@ -55,14 +47,13 @@ class NodeApi {
     return Map<String, dynamic>.from(p as Map);
   }
 
-  /// Paginated promoters list (for delegation discovery) → { total, list, ... }.
+  /// Paginated validators list → { total, list, ... }.
   Future<Map<String, dynamic>> getPromoters({int size = 20}) async {
     final p = await _get('promoters?size=$size', notFound: {'total': 0, 'list': []});
     return Map<String, dynamic>.from(p as Map);
   }
 
   Future<dynamic> postTransfer(Map<String, Object?> body) => _post('transactions/transfers', body);
-  Future<dynamic> postVote(Map<String, Object?> body) => _post('transactions/votes', body);
   Future<dynamic> postPromoter(Map<String, Object?> body) => _post('transactions/promoters', body);
-  Future<dynamic> postClaimReward(Map<String, Object?> body) => _post('transactions/claim-rewards', body);
+  Future<dynamic> postExitPromoter(Map<String, Object?> body) => _post('transactions/exit-promoters', body);
 }

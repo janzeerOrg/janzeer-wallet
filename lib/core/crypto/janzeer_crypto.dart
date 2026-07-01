@@ -11,6 +11,9 @@ import 'package:bip39/bip39.dart' as bip39;
 import 'package:pointycastle/export.dart';
 
 const String _hdSalt = '@_Janzeer_Blockchain_@'; // PBKDF2 salt base AND BIP32 root HMAC key (SeedConstant.SALT)
+// ChainSpec.networkId — prepended to every signed tx preimage (cross-chain replay protection, §16.2). Must
+// equal the node's `consensus.network-id`; override per-network by passing `networkId` to transactionBytes/build*.
+const String kNetworkId = 'janzeer';
 final BigInt _scale = BigInt.from(100000000); // 10^8 (Constants.BIG_DECIMAL_SCALE = 8)
 final ECDomainParameters _secp256k1 = ECDomainParameters('secp256k1');
 final BigInt _n = _secp256k1.n;
@@ -126,21 +129,33 @@ BigInt toScaledLong(Object amount) {
 
 // ---------------- address (ECKey.getAddress / AddressUtils) ----------------
 
-/// AddressUtils.addChecksum — input is lowercase hex, so effectively identity, but mirrored verbatim.
-String _addChecksum(String address) {
-  final h = bytesToHex(_keccak256(_utf8(address)));
-  final sb = StringBuffer();
-  for (var i = 0; i < address.length; i++) {
-    final nibble = int.parse(h[i], radix: 16);
-    sb.write(nibble >= 8 ? address[i].toLowerCase() : address[i]);
+/// CANONICAL address = "0x" + hex(keccak256(compressedPubkey)[0:20]), all-lowercase. This is what the node
+/// stores and hashes and what every signed `senderAddress` must be — so it MUST stay lowercase for parity.
+/// The EIP-55 mixed-case form (toChecksumAddress) is a display/validation overlay only (proposal §9).
+String publicKeyToAddress(Uint8List compressedPub) {
+  return '0x${bytesToHex(_keccak256(compressedPub).sublist(0, 20))}';
+}
+
+/// AddressUtils.toChecksumAddress — real EIP-55: uppercase each hex LETTER whose keccak256(lowercase-hex-body)
+/// nibble is >= 8. Presentational only (canonical storage stays lowercase); catches ~99.99% of typos (§9).
+String toChecksumAddress(String address) {
+  final body = (address.startsWith('0x') ? address.substring(2) : address).toLowerCase();
+  final h = bytesToHex(_keccak256(_utf8(body)));
+  final sb = StringBuffer('0x');
+  for (var i = 0; i < body.length; i++) {
+    final c = body[i];
+    final isLetter = c.codeUnitAt(0) >= 0x61 && c.codeUnitAt(0) <= 0x66; // a-f
+    sb.write(isLetter && int.parse(h[i], radix: 16) >= 8 ? c.toUpperCase() : c);
   }
   return sb.toString();
 }
 
-/// address = "0x" + checksum(hex(keccak256(compressedPubkey)[0:20])). NOT Ethereum's scheme.
-String publicKeyToAddress(Uint8List compressedPub) {
-  final addr = bytesToHex(_keccak256(compressedPub).sublist(0, 20));
-  return '0x${_addChecksum(addr)}';
+/// AddressUtils.isChecksumValid — accept all-lowercase (back-compat) or a correct EIP-55 mixed-case address.
+bool isChecksumValid(String address) {
+  if (!RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(address)) return false;
+  final body = address.substring(2);
+  if (body == body.toLowerCase() || body == body.toUpperCase()) return true;
+  return toChecksumAddress(address) == (address.startsWith('0x') ? address : '0x$address');
 }
 
 // ---------------- mnemonic (standard BIP39 English wordlist) ----------------
@@ -206,8 +221,9 @@ Account accountFromPrivateKey(String privHex) {
 
 // ---------------- transactions (Transaction.bytes + doubleSha256 + SignatureUtils.sign) ----------------
 
-/// Transaction.bytes(): timestamp + toScaledLong(fee) + nonce + senderAddress.utf8 + payload.
+/// Transaction.bytes(): networkId + timestamp + toScaledLong(fee) + nonce + senderAddress.utf8 + payload.
 Uint8List transactionBytes({
+  String networkId = kNetworkId,
   required int timestamp,
   required Object fee,
   required int nonce,
@@ -215,6 +231,7 @@ Uint8List transactionBytes({
   required Uint8List payload,
 }) =>
     _concat([
+      _utf8(networkId),
       _i64be(BigInt.from(timestamp)),
       _i64be(toScaledLong(fee)),
       _i64be(BigInt.from(nonce)),
@@ -225,13 +242,11 @@ Uint8List transactionBytes({
 Uint8List transferPayload({required Object amount, required String recipientAddress, String? data}) =>
     _concat([_i64be(toScaledLong(amount)), _utf8(recipientAddress), _utf8(data ?? '')]);
 
-Uint8List votePayload({required int voteTypeId, required String promoterKey}) =>
-    _concat([_ser32(voteTypeId), _utf8(promoterKey)]);
-
 Uint8List promoterPayload({required Object amount, required String promoterKey}) =>
     _concat([_i64be(toScaledLong(amount)), _utf8(promoterKey)]);
 
-Uint8List claimRewardPayload() => Uint8List(0);
+/// ExitPromoterTx.payload(): promoterKey.utf8 (no amount — the deposit is non-refundable).
+Uint8List exitPromoterPayload({required String promoterKey}) => _utf8(promoterKey);
 
 /// HashUtils.doubleSha256 -> lowercase hex (the tx `hash`).
 String hashBytes(Uint8List bytes) => bytesToHex(_doubleSha256(bytes));
@@ -288,13 +303,14 @@ Uint8List _derEncode(BigInt r, BigInt s) {
   return out;
 }
 
-Map<String, Object?> _sign(int timestamp, Object fee, int nonce, String senderAddress, String privHex, Uint8List payload) {
-  final hash = hashBytes(transactionBytes(timestamp: timestamp, fee: fee, nonce: nonce, senderAddress: senderAddress, payload: payload));
+Map<String, Object?> _sign(String networkId, int timestamp, Object fee, int nonce, String senderAddress, String privHex, Uint8List payload) {
+  final hash = hashBytes(transactionBytes(networkId: networkId, timestamp: timestamp, fee: fee, nonce: nonce, senderAddress: senderAddress, payload: payload));
   return {'hash': hash, 'signature': signHash(hash, privHex)};
 }
 
 /// Build a fully-signed transfer (caller supplies the current nonce + a timestamp).
 Map<String, Object?> buildSignedTransfer({
+  String networkId = kNetworkId,
   required int timestamp,
   required Object fee,
   required int nonce,
@@ -305,7 +321,7 @@ Map<String, Object?> buildSignedTransfer({
   String? data,
   required String privHex,
 }) {
-  final s = _sign(timestamp, fee, nonce, senderAddress, privHex, transferPayload(amount: amount, recipientAddress: recipientAddress, data: data));
+  final s = _sign(networkId, timestamp, fee, nonce, senderAddress, privHex, transferPayload(amount: amount, recipientAddress: recipientAddress, data: data));
   return {
     'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'hash': s['hash'],
     'senderAddress': senderAddress, 'senderSignature': s['signature'], 'senderPublicKey': publicKey,
@@ -313,27 +329,9 @@ Map<String, Object?> buildSignedTransfer({
   };
 }
 
-/// Build a signed vote (delegate=FOR/1, undelegate=AGAINST/2 for an existing delegation).
-Map<String, Object?> buildSignedVote({
-  required int timestamp,
-  required Object fee,
-  required int nonce,
-  required String senderAddress,
-  required String publicKey,
-  required int voteTypeId,
-  required String promoterKey,
-  required String privHex,
-}) {
-  final s = _sign(timestamp, fee, nonce, senderAddress, privHex, votePayload(voteTypeId: voteTypeId, promoterKey: promoterKey));
-  return {
-    'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'hash': s['hash'],
-    'senderAddress': senderAddress, 'voteTypeId': voteTypeId, 'promoterKey': promoterKey,
-    'senderSignature': s['signature'], 'senderPublicKey': publicKey,
-  };
-}
-
-/// Build a signed promoter-registration (stakes amount, registers promoterKey as a producer).
+/// Build a signed promoter-registration: DEPOSITS amount (2000, non-refundable) to register promoterKey.
 Map<String, Object?> buildSignedPromoter({
+  String networkId = kNetworkId,
   required int timestamp,
   required Object fee,
   required int nonce,
@@ -343,7 +341,7 @@ Map<String, Object?> buildSignedPromoter({
   required String promoterKey,
   required String privHex,
 }) {
-  final s = _sign(timestamp, fee, nonce, senderAddress, privHex, promoterPayload(amount: amount, promoterKey: promoterKey));
+  final s = _sign(networkId, timestamp, fee, nonce, senderAddress, privHex, promoterPayload(amount: amount, promoterKey: promoterKey));
   return {
     'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'senderAddress': senderAddress,
     'amount': '$amount', 'promoterKey': promoterKey, 'hash': s['hash'],
@@ -351,18 +349,21 @@ Map<String, Object?> buildSignedPromoter({
   };
 }
 
-/// Build a signed claim-reward (sweeps the sender's accrued delegation reward into spendable balance).
-Map<String, Object?> buildSignedClaimReward({
+/// Build a signed graceful validator exit (removes promoterKey next epoch; deposit stays non-refundable).
+Map<String, Object?> buildSignedExitPromoter({
+  String networkId = kNetworkId,
   required int timestamp,
   required Object fee,
   required int nonce,
   required String senderAddress,
   required String publicKey,
+  required String promoterKey,
   required String privHex,
 }) {
-  final s = _sign(timestamp, fee, nonce, senderAddress, privHex, claimRewardPayload());
+  final s = _sign(networkId, timestamp, fee, nonce, senderAddress, privHex, exitPromoterPayload(promoterKey: promoterKey));
   return {
-    'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'hash': s['hash'],
-    'senderAddress': senderAddress, 'senderSignature': s['signature'], 'senderPublicKey': publicKey,
+    'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'senderAddress': senderAddress,
+    'promoterKey': promoterKey, 'hash': s['hash'],
+    'senderSignature': s['signature'], 'senderPublicKey': publicKey,
   };
 }

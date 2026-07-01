@@ -23,8 +23,6 @@ class WalletHome extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              _stat(context, 'accrued_reward'.tr, () => '${prettyAmount(w.accruedReward.value)} ${AppConfig.unit}'),
-              const SizedBox(width: 12),
               _stat(context, 'next_nonce'.tr, () => '${w.nonce.value}'),
             ],
           ),
@@ -35,7 +33,7 @@ class WalletHome extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(child: _ActionButton(icon: Icons.south_west, label: 'receive'.tr, tonal: true, onTap: () => Get.toNamed(Routes.receive))),
               const SizedBox(width: 12),
-              Expanded(child: _ActionButton(icon: Icons.bolt, label: 'staking'.tr, tonal: true, onTap: () => Get.toNamed(Routes.staking))),
+              Expanded(child: _ActionButton(icon: Icons.bolt, label: 'validator'.tr, tonal: true, onTap: () => Get.toNamed(Routes.staking))),
             ],
           ),
           const SizedBox(height: 12),
