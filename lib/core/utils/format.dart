@@ -1,18 +1,23 @@
-import 'package:intl/intl.dart';
-
 /// Display formatting for on-chain amounts (which arrive as exact decimal strings like "1000.00000000").
 /// Groups thousands and trims trailing zeros, keeping the value exact (no float rounding) up to 8 dp.
+///
+/// NOTE: this deliberately does NOT use intl's NumberFormat — passing a BigInt to
+/// NumberFormat.format() throws `int is not a subtype of BigInt` in intl 0.20.2 (its `_floor` does
+/// `number ~/ 1`), which crashed the wallet home screen for any balance. We group digits with a pure
+/// string regex instead, which is both crash-free and exact.
 String prettyAmount(String raw) {
   final value = raw.trim();
   if (value.isEmpty) return '0';
   final neg = value.startsWith('-');
   final t = neg ? value.substring(1) : value;
   final dot = t.indexOf('.');
-  final intPart = dot < 0 ? t : t.substring(0, dot);
+  var intPart = dot < 0 ? t : t.substring(0, dot);
+  if (intPart.isEmpty) intPart = '0';
   var frac = dot < 0 ? '' : t.substring(dot + 1);
   // Trim trailing zeros in the fractional part.
   frac = frac.replaceFirst(RegExp(r'0+$'), '');
-  final grouped = NumberFormat.decimalPattern('en').format(BigInt.parse(intPart.isEmpty ? '0' : intPart));
+  // Insert thousands separators into the integer part (e.g. 1234567 -> 1,234,567).
+  final grouped = intPart.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
   final out = frac.isEmpty ? grouped : '$grouped.$frac';
   return neg ? '-$out' : out;
 }

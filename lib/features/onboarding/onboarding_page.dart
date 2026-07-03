@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../app/routes/app_routes.dart';
@@ -15,6 +16,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _wallet = Get.find<WalletController>();
   bool _create = true;
   bool _busy = false;
+  int _strength = 128; // 128 = 12 words, 256 = 24 words
   final _mnemonic = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
@@ -40,7 +42,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _busy = true);
     try {
       if (_create) {
-        final mnemonic = await _wallet.createWallet(_password.text);
+        final mnemonic = await _wallet.createWallet(_password.text, strength: _strength);
         if (mounted) await _showBackup(mnemonic);
       } else {
         await _wallet.importWallet(_mnemonic.text, _password.text);
@@ -73,6 +75,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ],
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: mnemonic));
+              _toast('copied'.tr);
+            },
+            icon: const Icon(Icons.copy, size: 18),
+            label: Text('copy'.tr),
+          ),
           FilledButton(
             onPressed: () {
               _wallet.confirmBackup();
@@ -132,6 +142,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   selected: {_create},
                   onSelectionChanged: (s) => setState(() => _create = s.first),
                 ),
+                if (_create) ...[
+                  const SizedBox(height: 16),
+                  Align(alignment: AlignmentDirectional.centerStart, child: Text('phrase_length'.tr, style: Theme.of(context).textTheme.labelMedium)),
+                  const SizedBox(height: 6),
+                  SegmentedButton<int>(
+                    segments: [
+                      ButtonSegment(value: 128, label: Text('words_12'.tr)),
+                      ButtonSegment(value: 256, label: Text('words_24'.tr)),
+                    ],
+                    selected: {_strength},
+                    onSelectionChanged: (s) => setState(() => _strength = s.first),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 if (!_create) ...[
                   TextField(

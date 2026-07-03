@@ -8,13 +8,13 @@ import '../wallet/wallet_controller.dart';
 /// Register as a validator (non-refundable deposit) or gracefully exit — all client-signed. No delegation or
 /// reward claiming: staking was removed (registration alone admits a validator; block rewards go 100% to the
 /// producer). Mirrors j_frontend's Validator panel.
-class StakingPage extends StatefulWidget {
-  const StakingPage({super.key});
+class ValidatorPage extends StatefulWidget {
+  const ValidatorPage({super.key});
   @override
-  State<StakingPage> createState() => _StakingPageState();
+  State<ValidatorPage> createState() => _ValidatorPageState();
 }
 
-class _StakingPageState extends State<StakingPage> {
+class _ValidatorPageState extends State<ValidatorPage> {
   final _wallet = Get.find<WalletController>();
   final _registerKey = TextEditingController();
   final _exitKey = TextEditingController();

@@ -160,7 +160,8 @@ bool isChecksumValid(String address) {
 
 // ---------------- mnemonic (standard BIP39 English wordlist) ----------------
 
-String generateMnemonic() => bip39.generateMnemonic(strength: 128);
+/// Generate a BIP39 mnemonic. strength 128 → 12 words, 256 → 24 words.
+String generateMnemonic({int strength = 128}) => bip39.generateMnemonic(strength: strength);
 
 bool validateMnemonic(String mnemonic) => bip39.validateMnemonic(mnemonic.trim());
 

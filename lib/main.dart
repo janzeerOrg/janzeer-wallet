@@ -32,21 +32,25 @@ class JanzeerWalletApp extends StatelessWidget {
     final theme = Get.find<ThemeController>();
     final locale = Get.find<LocaleController>();
 
-    return GetMaterialApp(
-      title: 'Janzeer Wallet',
-      debugShowCheckedModeBanner: false,
-      theme: theme.theme,
-      translations: AppTranslations(),
-      locale: locale.locale,
-      fallbackLocale: const Locale('en'),
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      initialRoute: _initialRoute,
-      getPages: AppPages.routes,
-    );
+    // Obx rebuilds the app when the preset or light/dark mode changes, so theme switches apply immediately
+    // (explicit theme/darkTheme/themeMode — not the system default that made Get.changeTheme ineffective).
+    return Obx(() => GetMaterialApp(
+          title: 'Janzeer Wallet',
+          debugShowCheckedModeBanner: false,
+          theme: theme.lightTheme,
+          darkTheme: theme.darkTheme,
+          themeMode: theme.mode,
+          translations: AppTranslations(),
+          locale: locale.locale,
+          fallbackLocale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          initialRoute: _initialRoute,
+          getPages: AppPages.routes,
+        ));
   }
 }

@@ -42,8 +42,8 @@ class WalletController extends GetxController {
     unlocked.value = true;
   }
 
-  Future<String> createWallet(String password) async {
-    final mnemonic = jc.generateMnemonic();
+  Future<String> createWallet(String password, {int strength = 128}) async {
+    final mnemonic = jc.generateMnemonic(strength: strength);
     _setAccount(jc.accountFromMnemonic(mnemonic));
     SecureStore.vault = Vault.encrypt(mnemonic, password);
     SecureStore.address = address.value;

@@ -7,7 +7,7 @@ import '../../core/config/app_config.dart';
 import '../../core/utils/format.dart';
 import '../wallet/wallet_controller.dart';
 
-/// Wallet tab: a hero balance card, accrued/nonce stats, and quick actions (Send/Receive/Stake).
+/// Wallet tab: a hero balance card, nonce stat, and quick actions (Send / Receive / Validator).
 class WalletHome extends StatelessWidget {
   const WalletHome({super.key});
 
@@ -33,7 +33,7 @@ class WalletHome extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(child: _ActionButton(icon: Icons.south_west, label: 'receive'.tr, tonal: true, onTap: () => Get.toNamed(Routes.receive))),
               const SizedBox(width: 12),
-              Expanded(child: _ActionButton(icon: Icons.bolt, label: 'validator'.tr, tonal: true, onTap: () => Get.toNamed(Routes.staking))),
+              Expanded(child: _ActionButton(icon: Icons.bolt, label: 'validator'.tr, tonal: true, onTap: () => Get.toNamed(Routes.validator))),
             ],
           ),
           const SizedBox(height: 12),

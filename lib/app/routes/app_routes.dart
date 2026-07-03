@@ -5,5 +5,5 @@ abstract class Routes {
   static const home = '/home';
   static const send = '/send';
   static const receive = '/receive';
-  static const staking = '/staking';
+  static const validator = '/validator';
 }

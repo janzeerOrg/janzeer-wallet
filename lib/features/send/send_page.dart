@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/config/app_config.dart';
 import '../../core/responsive/responsive.dart';
 import '../wallet/wallet_controller.dart';
+import 'qr_scan_page.dart';
 
 class SendPage extends StatefulWidget {
   const SendPage({super.key});
@@ -58,6 +59,15 @@ class _SendPageState extends State<SendPage> {
     }
   }
 
+  Future<void> _scan() async {
+    final code = await Get.to<String>(() => const QrScanPage());
+    if (code == null) return;
+    // Accept a bare address or a URI payload (e.g. ethereum:0x…?value=…) — extract the first 0x-address.
+    final m = RegExp(r'0x[0-9a-fA-F]{40}').firstMatch(code);
+    if (m == null) return _toast('invalid_recipient'.tr);
+    setState(() => _recipient.text = m.group(0)!);
+  }
+
   void _toast(String m) => Get.snackbar('', m, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
 
   @override
@@ -69,7 +79,18 @@ class _SendPageState extends State<SendPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(controller: _recipient, decoration: InputDecoration(labelText: 'recipient'.tr, hintText: '0x…')),
+              TextField(
+                controller: _recipient,
+                decoration: InputDecoration(
+                  labelText: 'recipient'.tr,
+                  hintText: '0x…',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'scan_qr'.tr,
+                    onPressed: _scan,
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'amount'.tr)),
               const SizedBox(height: 12),
