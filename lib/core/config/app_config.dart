@@ -12,5 +12,5 @@ class AppConfig {
 
   /// Default node REST base URL (overridable in Settings). `10.0.2.2` is the host loopback from the Android
   /// emulator; desktop/web use `localhost`.
-  static const String defaultNodeUrl = 'http://10.0.2.2:7019/api/v1/';
+  static const String defaultNodeUrl = 'http://127.0.0.1:7019/api/v1/';
 }

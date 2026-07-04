@@ -40,6 +40,9 @@ class WalletHome extends StatelessWidget {
           Obx(() => w.loading.value
               ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
               : const SizedBox.shrink()),
+          const SizedBox(height: 8),
+          // This wallet's latest transactions (send/receive, confirmed/pending) with load-more.
+          const _ActivitySection(),
         ],
       ),
     );
@@ -127,6 +130,171 @@ class _BalanceHero extends StatelessWidget {
                   ),
                 ),
               )),
+        ],
+      ),
+    );
+  }
+}
+
+/// This wallet's activity: pending (mempool) transfers first, then confirmed, 10 at a time with "load more".
+class _ActivitySection extends StatefulWidget {
+  const _ActivitySection();
+  @override
+  State<_ActivitySection> createState() => _ActivitySectionState();
+}
+
+class _ActivitySectionState extends State<_ActivitySection> {
+  final _w = Get.find<WalletController>();
+  final List<Map<String, dynamic>> _pending = [];
+  final List<Map<String, dynamic>> _confirmed = [];
+  int _page = 0;
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initialLoad();
+  }
+
+  Future<void> _initialLoad() async {
+    setState(() { _loading = true; _error = ''; });
+    try {
+      final results = await Future.wait([
+        _w.myTransfers(unconfirmed: true, size: 20),
+        _w.myTransfers(page: 0, size: 10),
+      ]);
+      _pending
+        ..clear()
+        ..addAll(((results[0]['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      _confirmed
+        ..clear()
+        ..addAll(((results[1]['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      _page = 0;
+      _hasMore = ((results[1]['totalPages'] as num?)?.toInt() ?? 0) > 1;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final r = await _w.myTransfers(page: _page + 1, size: 10);
+      _confirmed.addAll(((r['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      _page += 1;
+      _hasMore = _page + 1 < ((r['totalPages'] as num?)?.toInt() ?? 0);
+    } catch (_) {
+      // keep what we have
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: CircularProgressIndicator()));
+    }
+    final me = _w.address.value;
+    final items = [..._pending, ..._confirmed];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+          child: Row(children: [
+            Text('recent_activity'.tr, style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.refresh, size: 20), onPressed: _initialLoad, tooltip: 'refresh'.tr),
+          ]),
+        ),
+        if (_error.isNotEmpty)
+          Padding(padding: const EdgeInsets.all(16), child: Text(_error, style: const TextStyle(color: Colors.grey)))
+        else if (items.isEmpty)
+          const _EmptyActivity()
+        else
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  _TxRow(items[i], me: me, pending: i < _pending.length),
+                ],
+              ],
+            ),
+          ),
+        if (_hasMore)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Center(
+              child: TextButton.icon(
+                onPressed: _loadingMore ? null : _loadMore,
+                icon: _loadingMore
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.expand_more),
+                label: Text('load_more'.tr),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EmptyActivity extends StatelessWidget {
+  const _EmptyActivity();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(children: [
+        Icon(Icons.receipt_long_outlined, size: 34, color: Theme.of(context).disabledColor),
+        const SizedBox(height: 8),
+        Text('no_transfers'.tr, style: const TextStyle(color: Colors.grey)),
+      ]),
+    );
+  }
+}
+
+class _TxRow extends StatelessWidget {
+  const _TxRow(this.tx, {required this.me, required this.pending});
+  final Map<String, dynamic> tx;
+  final String me;
+  final bool pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final outgoing = tx['senderAddress'] == me;
+    final amountColor = pending ? Colors.orange : (outgoing ? Colors.red : Colors.green);
+    final counterparty = outgoing ? tx['recipientAddress'] : tx['senderAddress'];
+    final statusColor = pending ? Colors.orange : Colors.green;
+    return ListTile(
+      dense: true,
+      leading: CircleAvatar(
+        backgroundColor: amountColor.withValues(alpha: 0.15),
+        child: Icon(pending ? Icons.hourglass_top : (outgoing ? Icons.north_east : Icons.south_west), color: amountColor, size: 20),
+      ),
+      title: Text('${outgoing ? '-' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')} ${AppConfig.unit}',
+          style: TextStyle(fontWeight: FontWeight.w600, color: amountColor)),
+      subtitle: Text(shortHash('${counterparty ?? ''}', head: 10, tail: 8), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999)),
+            child: Text(pending ? 'pending'.tr : 'confirmed'.tr, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 2),
+          Text(timeAgo(tx['timestamp']), style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

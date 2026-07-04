@@ -78,6 +78,15 @@ class NodeApi {
     return Map<String, dynamic>.from(p as Map);
   }
 
+  /// Paginated transfers for one address — confirmed or (unconfirmed=true) pending → { total, list, page,
+  /// pageSize, totalPages }. Used by the home activity list ("load more").
+  Future<Map<String, dynamic>> getAddressTransfers(String address, {int page = 0, int size = 10, bool unconfirmed = false}) async {
+    final u = unconfirmed ? '&unconfirmed=true' : '';
+    final p = await _get('transactions/transfers?address=$address&page=$page&size=$size$u',
+        notFound: {'total': 0, 'list': [], 'page': 0, 'totalPages': 0});
+    return Map<String, dynamic>.from(p as Map);
+  }
+
   /// Paginated validators list → { total, list, ... }.
   Future<Map<String, dynamic>> getPromoters({int size = 20}) async {
     final p = await _get('promoters?size=$size', notFound: {'total': 0, 'list': []});

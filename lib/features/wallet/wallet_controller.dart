@@ -178,6 +178,10 @@ class WalletController extends GetxController {
   Future<Map<String, dynamic>> recentTransfers() => _api.getTransfers(address.value);
   Future<Map<String, dynamic>> promoters() => _api.getPromoters();
 
+  /// This wallet's transfers (confirmed or pending), paginated — for the home activity list.
+  Future<Map<String, dynamic>> myTransfers({int page = 0, int size = 10, bool unconfirmed = false}) =>
+      _api.getAddressTransfers(address.value, page: page, size: size, unconfirmed: unconfirmed);
+
   // Network-wide explorer reads (used by the Explorer tab).
   Future<Map<String, dynamic>> networkInfo() => _api.getInfo();
   Future<Map<String, dynamic>> latestBlocks({int size = 12}) => _api.getBlocks(size: size);
