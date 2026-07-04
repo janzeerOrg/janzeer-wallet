@@ -8,14 +8,40 @@ class NodeApi {
       : _dio = Dio(BaseOptions(
           baseUrl: baseUrl.endsWith('/') ? baseUrl : '$baseUrl/',
           headers: {'Content-Type': 'application/json'},
+          // Bounded timeouts: without them a wrong/unreachable node URL makes every call hang until the OS
+          // TCP timeout (minutes) with the button spinner stuck — indistinguishable from a freeze. Now a bad
+          // node surfaces a clear error in seconds instead. (wallet freeze fix)
+          connectTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
           // Don't throw on 404 — handled per-call; throw only on 5xx via _payload checks.
           validateStatus: (s) => s != null && s < 500,
         ));
 
   final Dio _dio;
 
+  /// Turn Dio's low-level errors (esp. timeouts) into a short, user-readable message instead of a raw
+  /// DioException / indefinite hang. (wallet freeze fix)
+  Never _fail(DioException e, String action) {
+    final msg = switch (e.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout =>
+        'Node not responding — check the node URL in Settings.',
+      DioExceptionType.connectionError => 'Cannot reach the node — check your connection and the node URL.',
+      _ => _message(e.response) ?? '$action failed (${e.response?.statusCode ?? 'no response'})',
+    };
+    throw Exception(msg);
+  }
+
   Future<dynamic> _get(String path, {Object? notFound}) async {
-    final r = await _dio.get(path);
+    final Response r;
+    try {
+      r = await _dio.get(path);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 && notFound != null) return notFound;
+      _fail(e, 'Request');
+    }
     if (r.statusCode == 404 && notFound != null) return notFound;
     if (r.statusCode != 200) {
       throw Exception(_message(r) ?? 'Request failed (${r.statusCode})');
@@ -24,15 +50,20 @@ class NodeApi {
   }
 
   Future<dynamic> _post(String path, Map<String, Object?> body) async {
-    final r = await _dio.post(path, data: body);
+    final Response r;
+    try {
+      r = await _dio.post(path, data: body);
+    } on DioException catch (e) {
+      _fail(e, 'Transaction');
+    }
     if (r.statusCode != 200 && r.statusCode != 201) {
       throw Exception(_message(r) ?? 'Transaction rejected (${r.statusCode})');
     }
     return (r.data as Map)['payload'];
   }
 
-  String? _message(Response r) {
-    final p = r.data is Map ? (r.data as Map)['payload'] : null;
+  String? _message(Response? r) {
+    final p = r?.data is Map ? (r!.data as Map)['payload'] : null;
     return p is Map ? p['message'] as String? : null;
   }
 

@@ -215,6 +215,57 @@ Account accountFromSeed(Uint8List seed) {
 Account accountFromMnemonic(String mnemonic, {String passphrase = ''}) =>
     accountFromSeed(mnemonicToSeed(mnemonic.trim(), passphrase: passphrase));
 
+// ---------------- isolate entrypoints (run via `compute` off the UI thread) ----------------
+// The derivation above is CPU-heavy in pure Dart (PBKDF2-HMAC-SHA512 x2048 + secp256k1 point multiplies).
+// Running it on the UI isolate froze the create/import/unlock buttons. These top-level functions take a
+// single sendable argument and return a plain Map so they can be dispatched with `compute(...)`. Keys are
+// returned as a map (not the Account object) to stay isolate-transfer-safe across Flutter versions.
+
+/// compute() entrypoint: mnemonic → {priv, pub, address}.
+Map<String, String> deriveAccountIsolate(String mnemonic) {
+  final a = accountFromMnemonic(mnemonic);
+  return {'priv': a.privHex, 'pub': a.pubHex, 'address': a.address};
+}
+
+/// compute() entrypoint: build a signed transfer from a primitive arg map.
+Map<String, Object?> buildSignedTransferIsolate(Map<String, Object?> a) => buildSignedTransfer(
+      networkId: (a['networkId'] as String?) ?? kNetworkId,
+      timestamp: a['timestamp'] as int,
+      fee: a['fee'] as Object,
+      nonce: a['nonce'] as int,
+      senderAddress: a['senderAddress'] as String,
+      publicKey: a['publicKey'] as String,
+      recipientAddress: a['recipientAddress'] as String,
+      amount: a['amount'] as Object,
+      data: a['data'] as String?,
+      privHex: a['privHex'] as String,
+    );
+
+/// compute() entrypoint: build a signed validator registration from a primitive arg map.
+Map<String, Object?> buildSignedPromoterIsolate(Map<String, Object?> a) => buildSignedPromoter(
+      networkId: (a['networkId'] as String?) ?? kNetworkId,
+      timestamp: a['timestamp'] as int,
+      fee: a['fee'] as Object,
+      nonce: a['nonce'] as int,
+      senderAddress: a['senderAddress'] as String,
+      publicKey: a['publicKey'] as String,
+      amount: a['amount'] as Object,
+      promoterKey: a['promoterKey'] as String,
+      privHex: a['privHex'] as String,
+    );
+
+/// compute() entrypoint: build a signed validator exit from a primitive arg map.
+Map<String, Object?> buildSignedExitPromoterIsolate(Map<String, Object?> a) => buildSignedExitPromoter(
+      networkId: (a['networkId'] as String?) ?? kNetworkId,
+      timestamp: a['timestamp'] as int,
+      fee: a['fee'] as Object,
+      nonce: a['nonce'] as int,
+      senderAddress: a['senderAddress'] as String,
+      publicKey: a['publicKey'] as String,
+      promoterKey: a['promoterKey'] as String,
+      privHex: a['privHex'] as String,
+    );
+
 Account accountFromPrivateKey(String privHex) {
   final pub = _compressedPub(_bytesToBigInt(hexToBytes(privHex)));
   return Account(privHex, bytesToHex(pub), publicKeyToAddress(pub));

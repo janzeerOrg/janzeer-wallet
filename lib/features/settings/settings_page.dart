@@ -157,7 +157,7 @@ class SettingsPage extends StatelessWidget {
       ],
     ));
     if (ok != true) return;
-    if (!wallet.checkPassword(password.text)) {
+    if (!await wallet.checkPassword(password.text)) {
       Get.snackbar('', 'incorrect_password'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
       return;
     }

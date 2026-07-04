@@ -46,3 +46,15 @@ class Vault {
     return utf8.decode(cipher.process(ct));
   }
 }
+
+// ---------------- isolate entrypoints (run via `compute` off the UI thread) ----------------
+// The 250k-iteration PBKDF2 in _deriveKey is the single heaviest operation in the app; running it on the UI
+// isolate is what froze the create/import/unlock buttons for seconds. These top-level functions take one
+// sendable arg so they can be dispatched with `compute(...)`. (wallet freeze fix)
+
+/// compute() entrypoint: [mnemonic, password] → the encrypted vault blob.
+Map<String, dynamic> vaultEncryptIsolate(List<String> args) => Vault.encrypt(args[0], args[1]);
+
+/// compute() entrypoint: [vault, password] → the decrypted mnemonic. Throws on a wrong password.
+String vaultDecryptIsolate(List<dynamic> args) =>
+    Vault.decrypt(Map<String, dynamic>.from(args[0] as Map), args[1] as String);

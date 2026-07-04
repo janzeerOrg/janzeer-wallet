@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show compute;
 import 'package:get/get.dart';
 
 import '../../core/config/app_config.dart';
@@ -35,17 +36,20 @@ class WalletController extends GetxController {
   /// Rebuild the API client after the node URL changes (Settings).
   void rebuildApi() => _api = NodeApi(SecureStore.nodeUrl);
 
-  void _setAccount(jc.Account a) {
-    address.value = a.address;
-    _pub = a.pubHex;
-    _priv = a.privHex;
+  /// Apply a derived account. Keys come back from the derivation isolate as a plain {priv,pub,address} map.
+  void _setAccount(Map<String, String> a) {
+    address.value = a['address']!;
+    _pub = a['pub']!;
+    _priv = a['priv']!;
     unlocked.value = true;
   }
 
   Future<String> createWallet(String password, {int strength = 128}) async {
     final mnemonic = jc.generateMnemonic(strength: strength);
-    _setAccount(jc.accountFromMnemonic(mnemonic));
-    SecureStore.vault = Vault.encrypt(mnemonic, password);
+    // Derivation (PBKDF2-SHA512 + EC) and vault sealing (250k-iter PBKDF2) run on background isolates via
+    // compute() so the UI thread — and its button spinner — stay responsive. (wallet freeze fix)
+    _setAccount(await compute(jc.deriveAccountIsolate, mnemonic));
+    SecureStore.vault = await compute(vaultEncryptIsolate, [mnemonic, password]);
     SecureStore.address = address.value;
     hasVault.value = true;
     backupMnemonic = mnemonic;
@@ -56,8 +60,8 @@ class WalletController extends GetxController {
   Future<void> importWallet(String mnemonic, String password) async {
     final phrase = mnemonic.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     if (!jc.validateMnemonic(phrase)) throw 'invalid_phrase';
-    _setAccount(jc.accountFromMnemonic(phrase));
-    SecureStore.vault = Vault.encrypt(phrase, password);
+    _setAccount(await compute(jc.deriveAccountIsolate, phrase));
+    SecureStore.vault = await compute(vaultEncryptIsolate, [phrase, password]);
     SecureStore.address = address.value;
     hasVault.value = true;
     await reload();
@@ -68,11 +72,12 @@ class WalletController extends GetxController {
     if (v == null) throw 'No wallet';
     final String mnemonic;
     try {
-      mnemonic = Vault.decrypt(v, password);
+      // 250k-iter PBKDF2 decrypt on a background isolate; a wrong password throws (GCM auth failure).
+      mnemonic = await compute(vaultDecryptIsolate, [v, password]);
     } catch (_) {
       throw 'incorrect_password';
     }
-    _setAccount(jc.accountFromMnemonic(mnemonic));
+    _setAccount(await compute(jc.deriveAccountIsolate, mnemonic));
     await reload();
   }
 
@@ -113,18 +118,20 @@ class WalletController extends GetxController {
 
   Future<void> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
     _ensureUnlocked();
-    final body = jc.buildSignedTransfer(
-      networkId: AppConfig.networkId,
-      timestamp: _now,
-      fee: (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
-      nonce: await _api.getNonce(address.value),
-      senderAddress: address.value,
-      publicKey: _pub,
-      recipientAddress: recipientAddress.trim(),
-      amount: amount,
-      data: (data != null && data.isNotEmpty) ? data : null,
-      privHex: _priv,
-    );
+    final nonce = await _api.getNonce(address.value);
+    // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
+    final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
+      'networkId': AppConfig.networkId,
+      'timestamp': _now,
+      'fee': (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
+      'nonce': nonce,
+      'senderAddress': address.value,
+      'publicKey': _pub,
+      'recipientAddress': recipientAddress.trim(),
+      'amount': amount,
+      'data': (data != null && data.isNotEmpty) ? data : null,
+      'privHex': _priv,
+    });
     await _api.postTransfer(body);
     await reload();
   }
@@ -132,12 +139,13 @@ class WalletController extends GetxController {
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
   Future<void> registerPromoter(String promoterKey) async {
     _ensureUnlocked();
-    final body = jc.buildSignedPromoter(
-      networkId: AppConfig.networkId,
-      timestamp: _now, fee: AppConfig.promoterFee, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub, amount: AppConfig.promoterDeposit,
-      promoterKey: promoterKey.trim(), privHex: _priv,
-    );
+    final nonce = await _api.getNonce(address.value);
+    final body = await compute(jc.buildSignedPromoterIsolate, <String, Object?>{
+      'networkId': AppConfig.networkId,
+      'timestamp': _now, 'fee': AppConfig.promoterFee, 'nonce': nonce,
+      'senderAddress': address.value, 'publicKey': _pub, 'amount': AppConfig.promoterDeposit,
+      'promoterKey': promoterKey.trim(), 'privHex': _priv,
+    });
     await _api.postPromoter(body);
     await reload();
   }
@@ -145,12 +153,13 @@ class WalletController extends GetxController {
   /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
   Future<void> exitPromoter(String promoterKey) async {
     _ensureUnlocked();
-    final body = jc.buildSignedExitPromoter(
-      networkId: AppConfig.networkId,
-      timestamp: _now, fee: AppConfig.minimumFee, nonce: await _api.getNonce(address.value),
-      senderAddress: address.value, publicKey: _pub,
-      promoterKey: promoterKey.trim(), privHex: _priv,
-    );
+    final nonce = await _api.getNonce(address.value);
+    final body = await compute(jc.buildSignedExitPromoterIsolate, <String, Object?>{
+      'networkId': AppConfig.networkId,
+      'timestamp': _now, 'fee': AppConfig.minimumFee, 'nonce': nonce,
+      'senderAddress': address.value, 'publicKey': _pub,
+      'promoterKey': promoterKey.trim(), 'privHex': _priv,
+    });
     await _api.postExitPromoter(body);
     await reload();
   }
@@ -159,11 +168,12 @@ class WalletController extends GetxController {
   Future<Map<String, dynamic>> promoters() => _api.getPromoters();
 
   /// Verify a password against the stored vault (used to enable an app-lock, which caches the password).
-  bool checkPassword(String password) {
+  /// Runs the 250k-iter PBKDF2 on a background isolate so it never blocks the UI. (wallet freeze fix)
+  Future<bool> checkPassword(String password) async {
     final v = SecureStore.vault;
     if (v == null) return false;
     try {
-      Vault.decrypt(v, password);
+      await compute(vaultDecryptIsolate, [v, password]);
       return true;
     } catch (_) {
       return false;
