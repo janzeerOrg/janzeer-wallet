@@ -50,6 +50,11 @@ class _SendPageState extends State<SendPage> {
         fee: _fee.text,
         data: _memo.text,
       );
+      // Clear the form on success so nothing lingers if we stay on the page. (send-field fix)
+      _recipient.clear();
+      _amount.clear();
+      _memo.clear();
+      _fee.text = AppConfig.minimumFee;
       _toast('send_submitted'.tr);
       Get.back<void>();
     } catch (e) {

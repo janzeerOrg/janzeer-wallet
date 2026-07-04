@@ -9,8 +9,21 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/theme/theme_presets.dart';
 import '../wallet/wallet_controller.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  // Owned by state (not recreated every build, and disposed properly). (settings polish)
+  final _nodeCtrl = TextEditingController(text: SecureStore.nodeUrl);
+
+  @override
+  void dispose() {
+    _nodeCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +31,6 @@ class SettingsPage extends StatelessWidget {
     final locale = Get.find<LocaleController>();
     final lock = Get.find<LockController>();
     final wallet = Get.find<WalletController>();
-    final nodeCtrl = TextEditingController(text: SecureStore.nodeUrl);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -107,11 +119,11 @@ class SettingsPage extends StatelessWidget {
               children: [
                 Text('node_url'.tr, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                TextField(controller: nodeCtrl, decoration: const InputDecoration(hintText: 'http://host:7019/api/v1/')),
+                TextField(controller: _nodeCtrl, decoration: const InputDecoration(hintText: 'http://host:7019/api/v1/')),
                 const SizedBox(height: 8),
                 FilledButton.tonal(
                   onPressed: () {
-                    SecureStore.nodeUrl = nodeCtrl.text.trim();
+                    SecureStore.nodeUrl = _nodeCtrl.text.trim();
                     wallet.rebuildApi();
                     wallet.reload();
                     Get.snackbar('', 'save'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));

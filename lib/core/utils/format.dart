@@ -27,3 +27,16 @@ String shortHash(String s, {int head = 6, int tail = 4}) {
   if (s.length <= head + tail + 1) return s;
   return '${s.substring(0, head)}…${s.substring(s.length - tail)}';
 }
+
+/// Compact relative age from an epoch-millis timestamp: "12s" / "3m" / "2h" / "1d". Unit letters read fine
+/// under both LTR and RTL, so no localization needed for this compact form.
+String timeAgo(dynamic ms) {
+  if (ms == null) return '';
+  final t = (ms as num).toInt();
+  final s = ((DateTime.now().millisecondsSinceEpoch - t) / 1000).floor();
+  if (s < 5) return 'now';
+  if (s < 60) return '${s}s';
+  if (s < 3600) return '${(s / 60).floor()}m';
+  if (s < 86400) return '${(s / 3600).floor()}h';
+  return '${(s / 86400).floor()}d';
+}

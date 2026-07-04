@@ -110,6 +110,17 @@ class WalletController extends GetxController {
     }
   }
 
+  /// Refresh balance/nonce WITHOUT letting a failure surface. Used after a transaction is already broadcast:
+  /// the send has succeeded, so a follow-up reload timeout must not be reported as a failed send (which used
+  /// to leave the form filled and show a false error). (send-field fix)
+  Future<void> _reloadQuietly() async {
+    try {
+      await reload();
+    } catch (_) {
+      /* balance/nonce will catch up on the next manual refresh */
+    }
+  }
+
   void _ensureUnlocked() {
     if (!unlocked.value) throw 'Wallet is locked';
   }
@@ -133,7 +144,7 @@ class WalletController extends GetxController {
       'privHex': _priv,
     });
     await _api.postTransfer(body);
-    await reload();
+    await _reloadQuietly();
   }
 
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
@@ -147,7 +158,7 @@ class WalletController extends GetxController {
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
     await _api.postPromoter(body);
-    await reload();
+    await _reloadQuietly();
   }
 
   /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
@@ -161,11 +172,17 @@ class WalletController extends GetxController {
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
     await _api.postExitPromoter(body);
-    await reload();
+    await _reloadQuietly();
   }
 
   Future<Map<String, dynamic>> recentTransfers() => _api.getTransfers(address.value);
   Future<Map<String, dynamic>> promoters() => _api.getPromoters();
+
+  // Network-wide explorer reads (used by the Explorer tab).
+  Future<Map<String, dynamic>> networkInfo() => _api.getInfo();
+  Future<Map<String, dynamic>> latestBlocks({int size = 12}) => _api.getBlocks(size: size);
+  Future<Map<String, dynamic>> latestTransfers({int size = 15}) => _api.getRecentTransfers(size: size);
+  Future<Map<String, dynamic>> pendingTransfers({int size = 30}) => _api.getPendingTransfers(size: size);
 
   /// Verify a password against the stored vault (used to enable an app-lock, which caches the password).
   /// Runs the 250k-iter PBKDF2 on a background isolate so it never blocks the UI. (wallet freeze fix)

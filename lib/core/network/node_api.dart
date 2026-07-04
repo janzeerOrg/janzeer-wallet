@@ -84,6 +84,32 @@ class NodeApi {
     return Map<String, dynamic>.from(p as Map);
   }
 
+  static const _emptyPage = {'total': 0, 'list': []};
+
+  /// Network summary (height, tps, supply, validators, epoch…).
+  Future<Map<String, dynamic>> getInfo() async {
+    final p = await _get('explorer/info', notFound: <String, dynamic>{});
+    return Map<String, dynamic>.from(p as Map);
+  }
+
+  /// Latest main blocks (network-wide), newest first → { total, list, ... }.
+  Future<Map<String, dynamic>> getBlocks({int size = 15}) async {
+    final p = await _get('blocks/main?size=$size', notFound: _emptyPage);
+    return Map<String, dynamic>.from(p as Map);
+  }
+
+  /// Latest CONFIRMED transfers (network-wide) → { total, list, ... }.
+  Future<Map<String, dynamic>> getRecentTransfers({int size = 15}) async {
+    final p = await _get('transactions/transfers?size=$size', notFound: _emptyPage);
+    return Map<String, dynamic>.from(p as Map);
+  }
+
+  /// PENDING (mempool) transfers → { total, list, ... }.
+  Future<Map<String, dynamic>> getPendingTransfers({int size = 30}) async {
+    final p = await _get('transactions/transfers?unconfirmed=true&size=$size', notFound: _emptyPage);
+    return Map<String, dynamic>.from(p as Map);
+  }
+
   Future<dynamic> postTransfer(Map<String, Object?> body) => _post('transactions/transfers', body);
   Future<dynamic> postPromoter(Map<String, Object?> body) => _post('transactions/promoters', body);
   Future<dynamic> postExitPromoter(Map<String, Object?> body) => _post('transactions/exit-promoters', body);

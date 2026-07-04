@@ -29,10 +29,11 @@ class _ValidatorPageState extends State<ValidatorPage> {
 
   bool _isKey(String k) => RegExp(r'^0[23][0-9a-fA-F]{64}$').hasMatch(k.trim());
 
-  Future<void> _run(String tag, Future<void> Function() action, String okMsg) async {
+  Future<void> _run(String tag, Future<void> Function() action, String okMsg, {VoidCallback? onOk}) async {
     setState(() => _busy = tag);
     try {
       await action();
+      onOk?.call(); // clear the key field on success (this page doesn't pop). (send-field fix)
       _toast(okMsg);
     } catch (e) {
       _toast(e.toString().replaceFirst('Exception: ', ''));
@@ -73,7 +74,7 @@ class _ValidatorPageState extends State<ValidatorPage> {
                         onPressed: _busy.isNotEmpty
                             ? null
                             : () => _isKey(_registerKey.text)
-                                ? _run('register', () => _wallet.registerPromoter(_registerKey.text), 'submitted'.tr)
+                                ? _run('register', () => _wallet.registerPromoter(_registerKey.text), 'submitted'.tr, onOk: _registerKey.clear)
                                 : _toast('invalid_validator_key'.tr),
                         icon: const Icon(Icons.campaign),
                         label: Text('register'.tr),
@@ -102,7 +103,7 @@ class _ValidatorPageState extends State<ValidatorPage> {
                         onPressed: _busy.isNotEmpty
                             ? null
                             : () => _isKey(_exitKey.text)
-                                ? _run('exit', () => _wallet.exitPromoter(_exitKey.text), 'submitted'.tr)
+                                ? _run('exit', () => _wallet.exitPromoter(_exitKey.text), 'submitted'.tr, onOk: _exitKey.clear)
                                 : _toast('invalid_validator_key'.tr),
                         icon: const Icon(Icons.logout),
                         label: Text('exit'.tr),
