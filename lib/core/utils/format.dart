@@ -22,6 +22,43 @@ String prettyAmount(String raw) {
   return neg ? '-$out' : out;
 }
 
+// ---- token base-unit conversion (lossless string math — token amounts can exceed native int range) ----
+
+/// Human amount ("1.5") -> integer base-unit decimal string for [decimals] places (truncates extra fraction).
+String toBaseUnits(String human, int decimals) {
+  var s = human.trim();
+  if (s.isEmpty || s == '.') return '0';
+  final neg = s.startsWith('-');
+  if (neg) s = s.substring(1);
+  final dot = s.indexOf('.');
+  var intPart = dot < 0 ? s : s.substring(0, dot);
+  var frac = dot < 0 ? '' : s.substring(dot + 1);
+  if (intPart.isEmpty) intPart = '0';
+  frac = (frac + '0' * decimals).substring(0, decimals);
+  var combined = (intPart + frac).replaceFirst(RegExp(r'^0+(?=\d)'), '');
+  if (combined.isEmpty) combined = '0';
+  return neg ? '-$combined' : combined;
+}
+
+/// Integer base units -> human decimal string with [decimals] places (trailing zeros trimmed).
+String fromBaseUnits(String base, int decimals) {
+  var s = base.trim();
+  if (s.isEmpty) s = '0';
+  final neg = s.startsWith('-');
+  if (neg) s = s.substring(1);
+  s = s.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+  if (s.isEmpty) s = '0';
+  if (decimals == 0) return neg ? '-$s' : s;
+  s = s.padLeft(decimals + 1, '0');
+  final intPart = s.substring(0, s.length - decimals);
+  final frac = s.substring(s.length - decimals).replaceFirst(RegExp(r'0+$'), '');
+  final out = frac.isEmpty ? intPart : '$intPart.$frac';
+  return neg ? '-$out' : out;
+}
+
+/// Human, thousands-grouped token amount from integer base units.
+String formatToken(String base, int decimals) => prettyAmount(fromBaseUnits(base, decimals));
+
 /// Shorten an address/key for compact display: 0x1234…abcd.
 String shortHash(String s, {int head = 6, int tail = 4}) {
   if (s.length <= head + tail + 1) return s;

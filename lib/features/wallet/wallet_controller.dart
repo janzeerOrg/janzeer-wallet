@@ -22,6 +22,11 @@ class WalletController extends GetxController {
   final RxInt nonce = 0.obs;
   final RxBool loading = false.obs;
 
+  // Multi-asset: token balances joined with their definitions ({ tokenId, symbol, name, decimals, balance }),
+  // and the token registry (definitions) for the mint/burn/transfer token picker.
+  final RxList<Map<String, dynamic>> tokenBalances = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> tokens = <Map<String, dynamic>>[].obs;
+
   /// Shown once after creation so the user can write it down; cleared on confirm.
   String? backupMnemonic;
 
@@ -95,6 +100,8 @@ class WalletController extends GetxController {
     address.value = '';
     balance.value = '0';
     nonce.value = 0;
+    tokenBalances.clear();
+    tokens.clear();
   }
 
   void confirmBackup() => backupMnemonic = null;
@@ -105,9 +112,32 @@ class WalletController extends GetxController {
     try {
       balance.value = await _api.getBalance(address.value);
       nonce.value = await _api.getNonce(address.value);
+      await _reloadTokens();
     } finally {
       loading.value = false;
     }
+  }
+
+  /// Fetch token balances + the registry, then join so each balance carries its symbol/decimals for display.
+  Future<void> _reloadTokens() async {
+    final tb = await _api.getTokenBalances(address.value);
+    final reg = await _api.getTokens();
+    final regList = ((reg['list'] as List?) ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    tokens.assignAll(regList);
+    final defs = {for (final t in regList) t['tokenId'] as String: t};
+    tokenBalances.assignAll(((tb['list'] as List?) ?? []).map((e) {
+      final b = Map<String, dynamic>.from(e as Map);
+      final d = defs[b['tokenId']] ?? const {};
+      return <String, dynamic>{
+        'tokenId': b['tokenId'],
+        'balance': '${b['balance']}',
+        'symbol': d['symbol'] ?? '',
+        'name': d['name'] ?? '',
+        'decimals': d['decimals'] ?? 0,
+      };
+    }).toList());
   }
 
   /// Refresh balance/nonce WITHOUT letting a failure surface. Used after a transaction is already broadcast:
@@ -174,6 +204,48 @@ class WalletController extends GetxController {
     await _api.postExitPromoter(body);
     await _reloadQuietly();
   }
+
+  /// Build, sign (background isolate) and submit a TokenTx. `cap`/`amount` are INTEGER BASE-UNIT decimal
+  /// strings (already scaled by the token's decimals — the UI converts human input). CREATE pays the exact
+  /// tokenCreateFee; other ops pay minimumFee (native coin). Returns the created tx payload.
+  Future<dynamic> submitToken({
+    required int op,
+    String tokenId = '',
+    String symbol = '',
+    String name = '',
+    int decimals = 0,
+    String? cap,
+    String? amount,
+    String? recipient,
+    String? fee,
+  }) async {
+    _ensureUnlocked();
+    final n = await _api.getNonce(address.value);
+    final feeStr = (fee == null || fee.trim().isEmpty)
+        ? (op == jc.TokenOp.create ? AppConfig.tokenCreateFee : AppConfig.minimumFee)
+        : fee;
+    final body = await compute(jc.buildSignedTokenTxIsolate, <String, Object?>{
+      'networkId': AppConfig.networkId,
+      'timestamp': _now, 'fee': feeStr, 'nonce': n,
+      'senderAddress': address.value, 'publicKey': _pub,
+      'op': op, 'tokenId': tokenId, 'symbol': symbol, 'name': name, 'decimals': decimals,
+      'cap': cap, 'amount': amount, 'recipient': recipient, 'privHex': _priv,
+    });
+    final res = await _api.postToken(body);
+    await _reloadQuietly();
+    return res;
+  }
+
+  Future<dynamic> createToken({required String symbol, required String name, required int decimals, required String cap, String initialSupply = '0'}) =>
+      submitToken(op: jc.TokenOp.create, symbol: symbol, name: name, decimals: decimals, cap: cap, amount: initialSupply);
+  Future<dynamic> mintToken({required String tokenId, required String amount}) =>
+      submitToken(op: jc.TokenOp.mint, tokenId: tokenId, amount: amount);
+  Future<dynamic> burnToken({required String tokenId, required String amount}) =>
+      submitToken(op: jc.TokenOp.burn, tokenId: tokenId, amount: amount);
+  Future<dynamic> setTokenCap({required String tokenId, required String cap}) =>
+      submitToken(op: jc.TokenOp.setcap, tokenId: tokenId, cap: cap);
+  Future<dynamic> transferToken({required String tokenId, required String amount, required String recipient}) =>
+      submitToken(op: jc.TokenOp.transfer, tokenId: tokenId, amount: amount, recipient: recipient);
 
   Future<Map<String, dynamic>> recentTransfers() => _api.getTransfers(address.value);
   Future<Map<String, dynamic>> promoters() => _api.getPromoters();

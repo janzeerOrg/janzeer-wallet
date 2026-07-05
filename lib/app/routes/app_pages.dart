@@ -5,6 +5,7 @@ import '../../features/lock/lock_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
 import '../../features/receive/receive_page.dart';
 import '../../features/send/send_page.dart';
+import '../../features/tokens/tokens_page.dart';
 import '../../features/validator/validator_page.dart';
 import '../../features/unlock/unlock_page.dart';
 import 'app_routes.dart';
@@ -18,5 +19,6 @@ class AppPages {
     GetPage(name: Routes.send, page: () => const SendPage()),
     GetPage(name: Routes.receive, page: () => const ReceivePage()),
     GetPage(name: Routes.validator, page: () => const ValidatorPage()),
+    GetPage(name: Routes.tokens, page: () => const TokensPage()),
   ];
 }

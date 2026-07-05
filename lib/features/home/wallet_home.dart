@@ -33,6 +33,8 @@ class WalletHome extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(child: _ActionButton(icon: Icons.south_west, label: 'receive'.tr, tonal: true, onTap: () => Get.toNamed(Routes.receive))),
               const SizedBox(width: 12),
+              Expanded(child: _ActionButton(icon: Icons.toll, label: 'tokens'.tr, tonal: true, onTap: () => Get.toNamed(Routes.tokens))),
+              const SizedBox(width: 12),
               Expanded(child: _ActionButton(icon: Icons.bolt, label: 'validator'.tr, tonal: true, onTap: () => Get.toNamed(Routes.validator))),
             ],
           ),

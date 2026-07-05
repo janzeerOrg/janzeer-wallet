@@ -122,4 +122,26 @@ class NodeApi {
   Future<dynamic> postTransfer(Map<String, Object?> body) => _post('transactions/transfers', body);
   Future<dynamic> postPromoter(Map<String, Object?> body) => _post('transactions/promoters', body);
   Future<dynamic> postExitPromoter(Map<String, Object?> body) => _post('transactions/exit-promoters', body);
+
+  // --- native tokens (JZT-1) ---
+
+  /// All token balances held by an address → { total, list: [{ tokenId, holder, balance }] }.
+  Future<Map<String, dynamic>> getTokenBalances(String address, {int size = 100}) async {
+    final p = await _get('tokens/balances/$address?size=$size', notFound: _emptyPage);
+    return Map<String, dynamic>.from(p as Map);
+  }
+
+  /// The token registry (definitions) → { total, list: [{ tokenId, symbol, name, decimals, cap, totalSupply, issuer }] }.
+  Future<Map<String, dynamic>> getTokens({int size = 100}) async {
+    final p = await _get('tokens?size=$size', notFound: _emptyPage);
+    return Map<String, dynamic>.from(p as Map);
+  }
+
+  /// One token definition, or null if it doesn't exist.
+  Future<Map<String, dynamic>?> getToken(String tokenId) async {
+    final p = await _get('tokens/$tokenId', notFound: null);
+    return p == null ? null : Map<String, dynamic>.from(p as Map);
+  }
+
+  Future<dynamic> postToken(Map<String, Object?> body) => _post('transactions/tokens', body);
 }
