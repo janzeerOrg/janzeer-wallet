@@ -7,6 +7,7 @@ class AppConfig {
   static const String minimumFee = '0.01';
   static const String promoterFee = '3'; // fee-promoter-tx
   static const String promoterDeposit = '2000'; // amount-promoter-tx — NON-REFUNDABLE registration deposit (§5, §10)
+  static const String tokenCreateFee = '5'; // fee-create-token-tx — exact flat fee a validator pays to CREATE a token
   static const int maxMemo = 256; // TransferTransactionValidator.MAX_DATA_SIZE
   static const String unit = 'JNZ'; // native-coin ticker (display only)
 

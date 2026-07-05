@@ -419,3 +419,93 @@ Map<String, Object?> buildSignedExitPromoter({
     'senderSignature': s['signature'], 'senderPublicKey': publicKey,
   };
 }
+
+// ---------------- native tokens (JZT-1) ----------------
+
+/// Token op codes carried in a TokenTx (the `op` byte). Mirrors util.TokenOp.
+class TokenOp {
+  static const int create = 0;
+  static const int mint = 1;
+  static const int burn = 2;
+  static const int setcap = 3;
+  static const int transfer = 4;
+}
+
+/// _ser32(len) + utf8(s) — a length-prefixed string, matching java putInt(len).put(bytes).
+Uint8List _lenPrefixed(String s) {
+  final b = _utf8(s);
+  return _concat([_ser32(b.length), b]);
+}
+
+/// TokenPayload.bytes(): op(1) ‖ LP(tokenId) ‖ LP(symbol) ‖ LP(name) ‖ int32(decimals) ‖ LP(cap) ‖ LP(amount) ‖ LP(recipient).
+/// Token amounts (cap/amount) are INTEGER base units carried as decimal STRINGS — NOT toScaledLong; tokens have
+/// their own `decimals` (display-only). Absent cap/amount/recipient serialize as "" (length 0). One layout for
+/// every op, so create/mint/burn/setcap/transfer all hash the way the node does.
+Uint8List tokenPayload({
+  required int op,
+  String tokenId = '',
+  String symbol = '',
+  String name = '',
+  int decimals = 0,
+  String? cap,
+  String? amount,
+  String? recipient,
+}) =>
+    _concat([
+      Uint8List.fromList([op & 0xff]),
+      _lenPrefixed(tokenId),
+      _lenPrefixed(symbol),
+      _lenPrefixed(name),
+      _ser32(decimals),
+      _lenPrefixed(cap ?? ''),
+      _lenPrefixed(amount ?? ''),
+      _lenPrefixed(recipient ?? ''),
+    ]);
+
+/// Build a fully-signed TokenTx (returns the ready-to-POST body). `cap`/`amount` are integer base-unit
+/// decimal strings (already scaled by the token's decimals). Pass only the op-relevant fields.
+Map<String, Object?> buildSignedTokenTx({
+  String networkId = kNetworkId,
+  required int timestamp,
+  required Object fee,
+  required int nonce,
+  required String senderAddress,
+  required String publicKey,
+  required int op,
+  String tokenId = '',
+  String symbol = '',
+  String name = '',
+  int decimals = 0,
+  String? cap,
+  String? amount,
+  String? recipient,
+  required String privHex,
+}) {
+  final s = _sign(networkId, timestamp, fee, nonce, senderAddress, privHex,
+      tokenPayload(op: op, tokenId: tokenId, symbol: symbol, name: name, decimals: decimals, cap: cap, amount: amount, recipient: recipient));
+  return {
+    'timestamp': timestamp, 'fee': '$fee', 'nonce': nonce, 'senderAddress': senderAddress,
+    'op': op, 'tokenId': tokenId, 'symbol': symbol, 'name': name, 'decimals': decimals,
+    'cap': cap, 'amount': amount, 'recipient': recipient,
+    'hash': s['hash'], 'senderSignature': s['signature'], 'senderPublicKey': publicKey,
+  };
+}
+
+/// compute() entrypoint: build a signed TokenTx from a primitive arg map (off the UI isolate).
+Map<String, Object?> buildSignedTokenTxIsolate(Map<String, Object?> a) => buildSignedTokenTx(
+      networkId: (a['networkId'] as String?) ?? kNetworkId,
+      timestamp: a['timestamp'] as int,
+      fee: a['fee'] as Object,
+      nonce: a['nonce'] as int,
+      senderAddress: a['senderAddress'] as String,
+      publicKey: a['publicKey'] as String,
+      op: a['op'] as int,
+      tokenId: (a['tokenId'] as String?) ?? '',
+      symbol: (a['symbol'] as String?) ?? '',
+      name: (a['name'] as String?) ?? '',
+      decimals: (a['decimals'] as int?) ?? 0,
+      cap: a['cap'] as String?,
+      amount: a['amount'] as String?,
+      recipient: a['recipient'] as String?,
+      privHex: a['privHex'] as String,
+    );

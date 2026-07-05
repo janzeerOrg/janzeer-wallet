@@ -4,6 +4,7 @@
 // assertion fails, the node would reject the wallet's transactions; do not ship without 15/15 green.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wallet/core/crypto/janzeer_crypto.dart';
@@ -15,6 +16,8 @@ void main() {
   final t = v['transferTx'] as Map<String, dynamic>;
   final promoter = v['promoterTx'] as Map<String, dynamic>;
   final exit = v['exitPromoterTx'] as Map<String, dynamic>;
+  final tc = v['tokenCreateTx'] as Map<String, dynamic>;
+  final tt = v['tokenTransferTx'] as Map<String, dynamic>;
 
   test('HD derivation: mnemonic -> seed -> m/0/0/0', () {
     expect(bytesToHex(mnemonicToSeed(hd['mnemonic'] as String, passphrase: hd['passphrase'] as String)), hd['seedHex']);
@@ -57,6 +60,40 @@ void main() {
         promoterKey: exit['promoterKey'] as String, privHex: rawKey['privHex'] as String);
     expect(s['hash'], exit['hash']);
     expect(s['senderSignature'], exit['signature']);
+  });
+
+  Uint8List tokenPayloadOf(Map<String, dynamic> x) => tokenPayload(
+        op: x['op'] as int, tokenId: x['tokenId'] as String, symbol: x['symbol'] as String,
+        name: x['name'] as String, decimals: x['decimals'] as int,
+        cap: x['cap'] as String?, amount: x['amount'] as String?, recipient: x['recipient'] as String?,
+      );
+  Map<String, Object?> buildTokenOf(Map<String, dynamic> x) => buildSignedTokenTx(
+        timestamp: x['timestamp'] as int, fee: x['fee'] as String, nonce: x['nonce'] as int,
+        senderAddress: x['senderAddress'] as String, publicKey: x['publicKey'] as String,
+        op: x['op'] as int, tokenId: x['tokenId'] as String, symbol: x['symbol'] as String,
+        name: x['name'] as String, decimals: x['decimals'] as int,
+        cap: x['cap'] as String?, amount: x['amount'] as String?, recipient: x['recipient'] as String?,
+        privHex: rawKey['privHex'] as String,
+      );
+
+  test('TokenTx CREATE preimage + hash + signature (byte-identical)', () {
+    final preimage = transactionBytes(
+        timestamp: tc['timestamp'] as int, fee: tc['fee'] as String, nonce: tc['nonce'] as int,
+        senderAddress: tc['senderAddress'] as String, payload: tokenPayloadOf(tc));
+    expect(bytesToHex(preimage), tc['preimageHex']);
+    final s = buildTokenOf(tc);
+    expect(s['hash'], tc['hash']);
+    expect(s['senderSignature'], tc['signature']);
+  });
+
+  test('TokenTx TRANSFER preimage + hash + signature (byte-identical)', () {
+    final preimage = transactionBytes(
+        timestamp: tt['timestamp'] as int, fee: tt['fee'] as String, nonce: tt['nonce'] as int,
+        senderAddress: tt['senderAddress'] as String, payload: tokenPayloadOf(tt));
+    expect(bytesToHex(preimage), tt['preimageHex']);
+    final s = buildTokenOf(tt);
+    expect(s['hash'], tt['hash']);
+    expect(s['senderSignature'], tt['signature']);
   });
 
   test('EIP-55 checksum overlay (display only; canonical stays lowercase)', () {
