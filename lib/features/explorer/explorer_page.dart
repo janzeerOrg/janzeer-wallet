@@ -106,7 +106,7 @@ class _StatHeader extends StatelessWidget {
         child: Row(children: [
           stat('height'.tr, '${info['blocksCount'] ?? 0}'),
           stat('tps'.tr, '${info['transactionsPerSecond'] ?? 0}'),
-          stat('validators'.tr, '${info['promotersCount'] ?? 0}'),
+          stat('validators'.tr, '${info['validatorsCount'] ?? 0}'),
           stat('nodes', '${info['nodesCount'] ?? 0}'),
         ]),
       ),

@@ -120,8 +120,8 @@ class NodeApi {
   }
 
   Future<dynamic> postTransfer(Map<String, Object?> body) => _post('transactions/transfers', body);
-  Future<dynamic> postPromoter(Map<String, Object?> body) => _post('transactions/promoters', body);
-  Future<dynamic> postExitPromoter(Map<String, Object?> body) => _post('transactions/exit-promoters', body);
+  Future<dynamic> postPromoter(Map<String, Object?> body) => _post('transactions/validators', body);
+  Future<dynamic> postExitPromoter(Map<String, Object?> body) => _post('transactions/exit-validators', body);
 
   // --- native tokens (JZT-1) ---
 

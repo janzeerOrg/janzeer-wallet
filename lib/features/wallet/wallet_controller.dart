@@ -210,6 +210,8 @@ class WalletController extends GetxController {
       'senderAddress': address.value, 'publicKey': _pub, 'amount': AppConfig.promoterDeposit,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
+    // The signed body comes back keyed `promoterKey` (the crypto module, unchanged); the API field is `validatorKey`.
+    body['validatorKey'] = body.remove('promoterKey');
     await _api.postPromoter(body);
     await _reloadQuietly();
   }
@@ -224,6 +226,7 @@ class WalletController extends GetxController {
       'senderAddress': address.value, 'publicKey': _pub,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
+    body['validatorKey'] = body.remove('promoterKey');
     await _api.postExitPromoter(body);
     await _reloadQuietly();
   }
