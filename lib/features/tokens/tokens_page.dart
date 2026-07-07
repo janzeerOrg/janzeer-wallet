@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/crypto/janzeer_crypto.dart' show TokenOp;
 import '../../core/responsive/responsive.dart';
 import '../../core/utils/format.dart';
@@ -58,6 +61,17 @@ class _TokensPageState extends State<TokensPage> {
   /// Decimals that drive the human→base-unit conversion: entered for CREATE, else from the selected token.
   int get _activeDecimals =>
       _op == TokenOp.create ? (int.tryParse(_decimals.text) ?? 0) : ((_selectedToken?['decimals'] as int?) ?? 0);
+
+  /// The native-coin fee for the current op: CREATE pays the flat token-create fee, everything else the minimum.
+  String get _fee => _op == TokenOp.create ? AppConfig.tokenCreateFee : AppConfig.minimumFee;
+
+  /// A token tx confirms a block or two later — re-pull balances/registry so the assets list and the token
+  /// picker update on their own (no more leaving the tab and coming back). Fires two catch-up refreshes.
+  void _scheduleRefresh() {
+    unawaited(_wallet.reload());
+    unawaited(Future<void>.delayed(const Duration(seconds: 7), _wallet.reload));
+    unawaited(Future<void>.delayed(const Duration(seconds: 16), _wallet.reload));
+  }
 
   bool _shows(String f) {
     switch (_op) {
@@ -141,6 +155,7 @@ class _TokensPageState extends State<TokensPage> {
       _initial.clear();
       _amount.clear();
       _recipient.clear();
+      _scheduleRefresh();
     } catch (e) {
       _toast(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -160,7 +175,18 @@ class _TokensPageState extends State<TokensPage> {
     };
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text('tokens'.tr)),
+      appBar: AppBar(
+        title: Text('tokens'.tr),
+        actions: [
+          Obx(() => IconButton(
+                icon: _wallet.loading.value
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh),
+                tooltip: 'refresh'.tr,
+                onPressed: _wallet.loading.value ? null : _wallet.reload,
+              )),
+        ],
+      ),
       body: SafeArea(
         child: ContentColumn(
           child: ListView(
@@ -229,6 +255,22 @@ class _TokensPageState extends State<TokensPage> {
               if (_shows('amount')) _field(_amount, 'tk_amount', number: true),
               if (_shows('cap')) _field(_cap, _op == TokenOp.setcap ? 'tk_newcap' : 'tk_cap', number: true),
               if (_shows('recipient')) _field(_recipient, 'tk_recipient', hint: '0x…'),
+              // Make the native-coin fee explicit — CREATE costs 5 JNZ, other ops 0.01 JNZ.
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('${'tk_fee'.tr}: $_fee ${AppConfig.unit}', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant))),
+                  ],
+                ),
+              ),
               const SizedBox(height: 8),
               FilledButton.icon(
                 onPressed: _busy ? null : _submit,

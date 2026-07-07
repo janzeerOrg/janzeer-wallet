@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show compute;
 import 'package:get/get.dart';
 
@@ -83,7 +85,10 @@ class WalletController extends GetxController {
       throw 'incorrect_password';
     }
     _setAccount(await compute(jc.deriveAccountIsolate, mnemonic));
-    await reload();
+    // Don't block the unlock on a network round-trip — the account is ready, navigate now and let the
+    // balance/nonce/token lists populate reactively in the background (reload is resilient). Fixes the
+    // "unlock button freezes" wait, especially against a slow node. (reload is now parallel + best-effort.)
+    unawaited(reload());
   }
 
   void lock() {
@@ -110,19 +115,34 @@ class WalletController extends GetxController {
     if (address.value.isEmpty) return;
     loading.value = true;
     try {
-      balance.value = await _api.getBalance(address.value);
-      nonce.value = await _api.getNonce(address.value);
+      // Fetch balance + nonce in PARALLEL (not sequentially) so a refresh — and the unlock that awaits it —
+      // isn't gated on two round-trips back to back. Best-effort: a slow/unreachable node must never crash
+      // the app or wedge the UI (the token calls are further isolated in _reloadTokens).
+      final core = await Future.wait([
+        _api.getBalance(address.value),
+        _api.getNonce(address.value),
+      ]);
+      balance.value = core[0] as String;
+      nonce.value = core[1] as int;
       await _reloadTokens();
+    } catch (_) {
+      /* balances stay as-is; the next manual refresh retries */
     } finally {
       loading.value = false;
     }
   }
 
-  /// Fetch token balances + the registry, then join so each balance carries its symbol/decimals for display.
+  /// Fetch token balances + the registry (in parallel), then join so each balance carries its symbol/decimals.
+  /// Resilient on its own: the token endpoints must not break/block the core balance+nonce refresh or unlock.
   Future<void> _reloadTokens() async {
-    final tb = await _api.getTokenBalances(address.value);
-    final reg = await _api.getTokens();
-    final regList = ((reg['list'] as List?) ?? [])
+    try {
+      final res = await Future.wait([
+        _api.getTokenBalances(address.value),
+        _api.getTokens(),
+      ]);
+      final tb = res[0];
+      final reg = res[1];
+      final regList = ((reg['list'] as List?) ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     tokens.assignAll(regList);
@@ -138,6 +158,9 @@ class WalletController extends GetxController {
         'decimals': d['decimals'] ?? 0,
       };
     }).toList());
+    } catch (_) {
+      /* token view is best-effort — leave the last-known lists in place */
+    }
   }
 
   /// Refresh balance/nonce WITHOUT letting a failure surface. Used after a transaction is already broadcast:
