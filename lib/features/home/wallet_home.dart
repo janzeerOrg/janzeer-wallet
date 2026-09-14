@@ -39,6 +39,27 @@ class WalletHome extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          // Testnet only: the node advertises a faucet -> one-tap test coins for this address.
+          Obx(() => w.hasFaucet.value
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.water_drop_outlined),
+                    label: Text('faucet'.tr),
+                    onPressed: () async {
+                      try {
+                        final hash = await w.requestFaucet();
+                        Get.snackbar('', 'faucet_sent'.trParams({'hash': '${hash.substring(0, 12)}…'}),
+                            snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+                        await w.reload();
+                      } catch (e) {
+                        Get.snackbar('', e.toString().replaceFirst('Exception: ', ''),
+                            snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+                      }
+                    },
+                  ),
+                )
+              : const SizedBox.shrink()),
           Obx(() => w.loading.value
               ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
               : const SizedBox.shrink()),

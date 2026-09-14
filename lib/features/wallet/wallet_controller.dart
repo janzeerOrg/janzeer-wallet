@@ -37,18 +37,44 @@ class WalletController extends GetxController {
   /// Shown once after creation so the user can write it down; cleared on confirm.
   String? backupMnemonic;
 
+  /// The node's `consensus.network-id` (GET info) — signed into every transaction, so the same app works on the
+  /// mainnet ("janzeer") and on a testnet ("janzeer-testnet"). Falls back to [AppConfig.networkId] on an older node.
+  final networkId = AppConfig.networkId.obs;
+
+  /// True when the node runs a testnet faucet (`POST /api/v1/faucet`).
+  final hasFaucet = false.obs;
+
   @override
   void onInit() {
     super.onInit();
     _api = _client();
     hasVault.value = SecureStore.vault != null;
     address.value = SecureStore.address;
+    _loadNodeInfo();
   }
 
   /// Rebuild the API client after the node URL changes (Settings).
   void rebuildApi() {
     _api.close();
     _api = _client();
+    _loadNodeInfo();
+  }
+
+  Future<void> _loadNodeInfo() async {
+    try {
+      final info = await _api.info();
+      networkId.value = info.networkId;
+      hasFaucet.value = info.faucet;
+    } catch (_) {
+      networkId.value = AppConfig.networkId;
+      hasFaucet.value = false;
+    }
+  }
+
+  /// Testnet faucet drip to this wallet's address; returns the transfer hash.
+  Future<String> requestFaucet() async {
+    final res = await _guard(() => _api.post('faucet', {'address': address.value}).then(toPlainNumbers));
+    return (res as Map)['hash'] as String;
   }
 
   // Bounded timeout: a wrong/unreachable node URL must surface in seconds, not hang the spinner. (wallet freeze fix)
@@ -213,7 +239,7 @@ class WalletController extends GetxController {
     final nonce = await _guard(() => _api.nonce(address.value));
     // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
     final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
-      'networkId': AppConfig.networkId,
+      'networkId': networkId.value,
       'timestamp': _now,
       'fee': (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
       'nonce': nonce,
@@ -233,7 +259,7 @@ class WalletController extends GetxController {
     _ensureUnlocked();
     final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedPromoterIsolate, <String, Object?>{
-      'networkId': AppConfig.networkId,
+      'networkId': networkId.value,
       'timestamp': _now, 'fee': AppConfig.promoterFee, 'nonce': nonce,
       'senderAddress': address.value, 'publicKey': _pub, 'amount': AppConfig.promoterDeposit,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
@@ -247,7 +273,7 @@ class WalletController extends GetxController {
     _ensureUnlocked();
     final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedExitPromoterIsolate, <String, Object?>{
-      'networkId': AppConfig.networkId,
+      'networkId': networkId.value,
       'timestamp': _now, 'fee': AppConfig.minimumFee, 'nonce': nonce,
       'senderAddress': address.value, 'publicKey': _pub,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
@@ -276,7 +302,7 @@ class WalletController extends GetxController {
         ? (op == jc.TokenOp.create ? AppConfig.tokenCreateFee : AppConfig.minimumFee)
         : fee;
     final body = await compute(jc.buildSignedTokenTxIsolate, <String, Object?>{
-      'networkId': AppConfig.networkId,
+      'networkId': networkId.value,
       'timestamp': _now, 'fee': feeStr, 'nonce': n,
       'senderAddress': address.value, 'publicKey': _pub,
       'op': op, 'tokenId': tokenId, 'symbol': symbol, 'name': name, 'decimals': decimals,

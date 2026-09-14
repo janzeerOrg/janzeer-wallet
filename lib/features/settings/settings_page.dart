@@ -120,6 +120,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text('node_url'.tr, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 TextField(controller: _nodeCtrl, decoration: const InputDecoration(hintText: 'http://host:7019/api/v1/')),
+                const SizedBox(height: 6),
+                Obx(() => Text('${'network_id'.tr}: ${wallet.networkId.value}'
+                    '${wallet.networkId.value == 'janzeer' ? '' : '  (${'testnet'.tr})'}',
+                    style: Theme.of(context).textTheme.bodySmall)),
                 const SizedBox(height: 8),
                 FilledButton.tonal(
                   onPressed: () {
