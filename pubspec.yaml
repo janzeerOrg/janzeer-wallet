@@ -36,9 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   get: ^4.7.3
   get_secure_storage: ^1.0.5
-  pointycastle: ^3.9.1
-  bip39: ^1.0.6
-  dio: ^5.9.2
+  janzeer_sdk:
+    path: ../sdk_dart
   qr_flutter: ^4.1.0
   local_auth: ^3.0.1
   intl: 0.20.2

@@ -26,7 +26,7 @@ packages:
     source: hosted
     version: "2.13.1"
   bip39:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: bip39
       sha256: de1ee27ebe7d96b84bb3a04a4132a0a3007dcdd5ad27dd14aa87a29d97c45edc
@@ -121,22 +121,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
-  dio:
-    dependency: "direct main"
-    description:
-      name: dio
-      sha256: aff32c08f92787a557dd5c0145ac91536481831a01b4648136373cddb0e64f8c
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.9.2"
-  dio_web_adapter:
-    dependency: transitive
-    description:
-      name: dio_web_adapter
-      sha256: "2f9e64323a7c3c7ef69567d5c800424a11f8337b8b228bad02524c9fb3c1f340"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.2"
   fake_async:
     dependency: transitive
     description:
@@ -229,6 +213,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.2"
+  http:
+    dependency: transitive
+    description:
+      name: http
+      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.0"
   http_parser:
     dependency: transitive
     description:
@@ -253,6 +245,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.20.2"
+  janzeer_sdk:
+    dependency: "direct main"
+    description:
+      path: "../sdk_dart"
+      relative: true
+    source: path
+    version: "0.1.0"
   jni:
     dependency: transitive
     description:
@@ -389,14 +388,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.18.0"
-  mime:
-    dependency: transitive
-    description:
-      name: mime
-      sha256: "41a20518f0cb1256669420fdba0cd90d21561e560ac240f26ef8322e45bb7ed6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.0"
   mobile_scanner:
     dependency: "direct main"
     description:
@@ -502,7 +493,7 @@ packages:
     source: hosted
     version: "2.1.8"
   pointycastle:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: pointycastle
       sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
@@ -634,6 +625,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+  web_socket:
+    dependency: transitive
+    description:
+      name: web_socket
+      sha256: "34d64019aa8e36bf9842ac014bb5d2f5586ca73df5e4d9bf5c936975cae6982c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
+  web_socket_channel:
+    dependency: transitive
+    description:
+      name: web_socket_channel
+      sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.3"
   xdg_directories:
     dependency: transitive
     description:

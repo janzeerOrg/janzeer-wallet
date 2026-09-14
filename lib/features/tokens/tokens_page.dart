@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/crypto/janzeer_crypto.dart' show TokenOp;
+import 'package:janzeer_sdk/crypto.dart' show TokenOp;
 import '../../core/responsive/responsive.dart';
 import '../../core/utils/format.dart';
 import '../wallet/wallet_controller.dart';

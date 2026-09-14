@@ -6,7 +6,7 @@ import '../config/app_config.dart';
 
 /// Encrypted-at-rest key/value store (get_secure_storage). Holds the password-encrypted vault blob and
 /// non-secret prefs (theme, locale, node URL, lock mode). The vault is ALSO password-encrypted on top of
-/// this (defence in depth) — see [core/crypto/vault.dart].
+/// this (defence in depth) — see `package:janzeer_sdk/vault.dart`.
 class SecureStore {
   static final GetSecureStorage _box = GetSecureStorage();
 

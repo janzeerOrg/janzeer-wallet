@@ -3,16 +3,21 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:get/get.dart';
 
+import 'package:janzeer_sdk/crypto.dart' as jc;
+import 'package:janzeer_sdk/janzeer_sdk.dart' show JanzeerClient, JanzeerException, toPlainNumbers;
+import 'package:janzeer_sdk/vault.dart';
+
 import '../../core/config/app_config.dart';
-import '../../core/crypto/janzeer_crypto.dart' as jc;
-import '../../core/crypto/vault.dart';
-import '../../core/network/node_api.dart';
 import '../../core/storage/secure_store.dart';
 
 /// The wallet's core state + actions. Non-custodial: the mnemonic/private key live only in memory while
 /// unlocked; only the password-encrypted vault is persisted. Mirrors j_frontend/src/store/WalletStore.js.
+///
+/// Crypto and node transport come from `janzeer_sdk` (the official SDK; the app used to carry its own copies).
+/// Screens still consume the raw JSON shapes (`Map`s with numbers), so the reads go through [_map], which turns
+/// the SDK's lossless tree back into `jsonDecode` values; the typed client methods are the way forward.
 class WalletController extends GetxController {
-  late NodeApi _api;
+  late JanzeerClient _api;
 
   final RxBool hasVault = false.obs;
   final RxBool unlocked = false.obs;
@@ -35,13 +40,36 @@ class WalletController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _api = NodeApi(SecureStore.nodeUrl);
+    _api = _client();
     hasVault.value = SecureStore.vault != null;
     address.value = SecureStore.address;
   }
 
   /// Rebuild the API client after the node URL changes (Settings).
-  void rebuildApi() => _api = NodeApi(SecureStore.nodeUrl);
+  void rebuildApi() {
+    _api.close();
+    _api = _client();
+  }
+
+  // Bounded timeout: a wrong/unreachable node URL must surface in seconds, not hang the spinner. (wallet freeze fix)
+  static JanzeerClient _client() => JanzeerClient(SecureStore.nodeUrl, timeout: const Duration(seconds: 15));
+
+  /// Run a node call; SDK exceptions become plain `Exception(message)` so the screens' `replaceFirst('Exception: ', '')`
+  /// keeps showing the node's text (typed handling can move into the screens later).
+  Future<T> _guard<T>(Future<T> Function() f) async {
+    try {
+      return await f();
+    } on JanzeerException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
+  /// A paged/object payload in the legacy `jsonDecode` shape (`total`, `list`, …); `empty` for a 404.
+  Future<Map<String, dynamic>> _map(String path, {Map<String, Object?>? query, Map<String, dynamic> empty = const {'total': 0, 'list': []}}) =>
+      _guard(() async {
+        final v = await _api.get(path, query: query, notFound: null);
+        return v == null ? Map<String, dynamic>.from(empty) : Map<String, dynamic>.from(toPlainNumbers(v) as Map);
+      });
 
   /// Apply a derived account. Keys come back from the derivation isolate as a plain {priv,pub,address} map.
   void _setAccount(Map<String, String> a) {
@@ -118,9 +146,9 @@ class WalletController extends GetxController {
       // Fetch balance + nonce in PARALLEL (not sequentially) so a refresh — and the unlock that awaits it —
       // isn't gated on two round-trips back to back. Best-effort: a slow/unreachable node must never crash
       // the app or wedge the UI (the token calls are further isolated in _reloadTokens).
-      final core = await Future.wait([
-        _api.getBalance(address.value),
-        _api.getNonce(address.value),
+      final core = await Future.wait<Object>([
+        _api.balance(address.value),
+        _api.nonce(address.value),
       ]);
       balance.value = core[0] as String;
       nonce.value = core[1] as int;
@@ -137,8 +165,8 @@ class WalletController extends GetxController {
   Future<void> _reloadTokens() async {
     try {
       final res = await Future.wait([
-        _api.getTokenBalances(address.value),
-        _api.getTokens(),
+        _map('tokens/balances/${address.value}', query: {'size': 100}),
+        _map('tokens', query: {'size': 100}),
       ]);
       final tb = res[0];
       final reg = res[1];
@@ -182,7 +210,7 @@ class WalletController extends GetxController {
 
   Future<void> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
     _ensureUnlocked();
-    final nonce = await _api.getNonce(address.value);
+    final nonce = await _guard(() => _api.nonce(address.value));
     // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
     final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
       'networkId': AppConfig.networkId,
@@ -196,38 +224,35 @@ class WalletController extends GetxController {
       'data': (data != null && data.isNotEmpty) ? data : null,
       'privHex': _priv,
     });
-    await _api.postTransfer(body);
+    await _guard(() => _api.post('transactions/transfers', body));
     await _reloadQuietly();
   }
 
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
   Future<void> registerPromoter(String promoterKey) async {
     _ensureUnlocked();
-    final nonce = await _api.getNonce(address.value);
+    final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedPromoterIsolate, <String, Object?>{
       'networkId': AppConfig.networkId,
       'timestamp': _now, 'fee': AppConfig.promoterFee, 'nonce': nonce,
       'senderAddress': address.value, 'publicKey': _pub, 'amount': AppConfig.promoterDeposit,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
-    // The signed body comes back keyed `promoterKey` (the crypto module, unchanged); the API field is `validatorKey`.
-    body['validatorKey'] = body.remove('promoterKey');
-    await _api.postPromoter(body);
+    await _guard(() => _api.post('transactions/validators', body)); // the SDK body already carries `validatorKey`
     await _reloadQuietly();
   }
 
   /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
   Future<void> exitPromoter(String promoterKey) async {
     _ensureUnlocked();
-    final nonce = await _api.getNonce(address.value);
+    final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedExitPromoterIsolate, <String, Object?>{
       'networkId': AppConfig.networkId,
       'timestamp': _now, 'fee': AppConfig.minimumFee, 'nonce': nonce,
       'senderAddress': address.value, 'publicKey': _pub,
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
-    body['validatorKey'] = body.remove('promoterKey');
-    await _api.postExitPromoter(body);
+    await _guard(() => _api.post('transactions/exit-validators', body));
     await _reloadQuietly();
   }
 
@@ -246,7 +271,7 @@ class WalletController extends GetxController {
     String? fee,
   }) async {
     _ensureUnlocked();
-    final n = await _api.getNonce(address.value);
+    final n = await _guard(() => _api.nonce(address.value));
     final feeStr = (fee == null || fee.trim().isEmpty)
         ? (op == jc.TokenOp.create ? AppConfig.tokenCreateFee : AppConfig.minimumFee)
         : fee;
@@ -257,7 +282,7 @@ class WalletController extends GetxController {
       'op': op, 'tokenId': tokenId, 'symbol': symbol, 'name': name, 'decimals': decimals,
       'cap': cap, 'amount': amount, 'recipient': recipient, 'privHex': _priv,
     });
-    final res = await _api.postToken(body);
+    final res = await _guard(() => _api.post('transactions/tokens', body).then(toPlainNumbers));
     await _reloadQuietly();
     return res;
   }
@@ -273,18 +298,20 @@ class WalletController extends GetxController {
   Future<dynamic> transferToken({required String tokenId, required String amount, required String recipient}) =>
       submitToken(op: jc.TokenOp.transfer, tokenId: tokenId, amount: amount, recipient: recipient);
 
-  Future<Map<String, dynamic>> recentTransfers() => _api.getTransfers(address.value);
-  Future<Map<String, dynamic>> promoters() => _api.getPromoters();
+  Future<Map<String, dynamic>> recentTransfers() => _map('transactions/transfers', query: {'address': address.value, 'size': 15});
+
+  /// Registered validators (the old client asked a non-existent `promoters` path and always showed an empty list).
+  Future<Map<String, dynamic>> promoters() => _map('validators', query: {'size': 20});
 
   /// This wallet's transfers (confirmed or pending), paginated — for the home activity list.
   Future<Map<String, dynamic>> myTransfers({int page = 0, int size = 10, bool unconfirmed = false}) =>
-      _api.getAddressTransfers(address.value, page: page, size: size, unconfirmed: unconfirmed);
+      _map('transactions/transfers', query: {'address': address.value, 'page': page, 'size': size, 'unconfirmed': unconfirmed ? true : null}, empty: const {'total': 0, 'list': [], 'page': 0, 'totalPages': 0});
 
   // Network-wide explorer reads (used by the Explorer tab).
-  Future<Map<String, dynamic>> networkInfo() => _api.getInfo();
-  Future<Map<String, dynamic>> latestBlocks({int size = 12}) => _api.getBlocks(size: size);
-  Future<Map<String, dynamic>> latestTransfers({int size = 15}) => _api.getRecentTransfers(size: size);
-  Future<Map<String, dynamic>> pendingTransfers({int size = 30}) => _api.getPendingTransfers(size: size);
+  Future<Map<String, dynamic>> networkInfo() => _map('explorer/info', empty: const {});
+  Future<Map<String, dynamic>> latestBlocks({int size = 12}) => _map('blocks/main', query: {'size': size});
+  Future<Map<String, dynamic>> latestTransfers({int size = 15}) => _map('transactions/transfers', query: {'size': size});
+  Future<Map<String, dynamic>> pendingTransfers({int size = 30}) => _map('transactions/transfers', query: {'unconfirmed': true, 'size': size});
 
   /// Verify a password against the stored vault (used to enable an app-lock, which caches the password).
   /// Runs the 250k-iter PBKDF2 on a background isolate so it never blocks the UI. (wallet freeze fix)
