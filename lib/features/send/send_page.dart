@@ -103,7 +103,7 @@ class _SendPageState extends State<SendPage> {
               const SizedBox(height: 12),
               TextField(controller: _fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'fee'.tr)),
               const SizedBox(height: 12),
-              TextField(controller: _memo, maxLength: AppConfig.maxMemo, // characters; the byte limit is enforced in _validate() decoration: InputDecoration(labelText: 'memo'.tr)),
+              TextField(controller: _memo, maxLength: AppConfig.maxMemo, decoration: InputDecoration(labelText: 'memo'.tr)),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: _busy ? null : _send,
