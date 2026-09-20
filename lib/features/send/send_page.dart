@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -35,7 +36,8 @@ class _SendPageState extends State<SendPage> {
     final amt = double.tryParse(_amount.text);
     if (amt == null || amt < 0) return 'invalid_amount'.tr;
     if (amt == 0 && _memo.text.isEmpty) return 'invalid_amount'.tr;
-    if (_memo.text.length > AppConfig.maxMemo) return 'invalid_amount'.tr;
+    // the node's limit is 256 BYTES of UTF-8 — an Arabic letter is 2, an emoji 4 (online test F-005)
+    if (utf8.encode(_memo.text.trim()).length > AppConfig.maxMemo) return 'memo_too_long'.tr;
     return null;
   }
 
@@ -101,7 +103,7 @@ class _SendPageState extends State<SendPage> {
               const SizedBox(height: 12),
               TextField(controller: _fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'fee'.tr)),
               const SizedBox(height: 12),
-              TextField(controller: _memo, maxLength: AppConfig.maxMemo, decoration: InputDecoration(labelText: 'memo'.tr)),
+              TextField(controller: _memo, maxLength: AppConfig.maxMemo, // characters; the byte limit is enforced in _validate() decoration: InputDecoration(labelText: 'memo'.tr)),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: _busy ? null : _send,
