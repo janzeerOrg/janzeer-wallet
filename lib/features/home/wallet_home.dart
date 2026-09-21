@@ -182,6 +182,37 @@ class _ActivitySectionState extends State<_ActivitySection> {
     _initialLoad();
   }
 
+  /// Pending + outgoing + the node reports the nonce (0.1.0+) → offer "Speed up": same transfer, higher fee.
+  Future<void> _speedUp(Map<String, dynamic> tx) async {
+    final oldFee = double.tryParse('${tx['fee']}') ?? 0.01;
+    final suggested = (oldFee * 2 > oldFee + 0.01 ? oldFee * 2 : oldFee + 0.01);
+    final feeCtl = TextEditingController(text: suggested.toStringAsFixed(2));
+    final fee = await Get.dialog<String>(AlertDialog(
+      title: Text('speed_up'.tr),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('speed_up_note'.tr, style: const TextStyle(fontSize: 13, height: 1.45)),
+        const SizedBox(height: 14),
+        TextField(
+          controller: feeCtl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: '${'new_fee'.tr} (${AppConfig.unit})', helperText: '${'current_fee'.tr}: ${tx['fee']}'),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Get.back<String>(), child: Text('cancel'.tr)),
+        FilledButton(onPressed: () => Get.back<String>(result: feeCtl.text.trim()), child: Text('speed_up_confirm'.tr)),
+      ],
+    ));
+    if (fee == null || fee.isEmpty) return;
+    try {
+      await _w.speedUpTransfer(tx, fee);
+      Get.snackbar('speed_up'.tr, 'speed_up_sent'.tr, snackPosition: SnackPosition.BOTTOM);
+      await _initialLoad();
+    } catch (e) {
+      Get.snackbar('speed_up'.tr, '$e', snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
   Future<void> _initialLoad() async {
     setState(() { _loading = true; _error = ''; });
     try {
@@ -248,7 +279,7 @@ class _ActivitySectionState extends State<_ActivitySection> {
               children: [
                 for (var i = 0; i < items.length; i++) ...[
                   if (i > 0) const Divider(height: 1),
-                  _TxRow(items[i], me: me, pending: i < _pending.length),
+                  _TxRow(items[i], me: me, pending: i < _pending.length, onSpeedUp: i < _pending.length ? () => _speedUp(items[i]) : null),
                 ],
               ],
             ),
@@ -287,10 +318,11 @@ class _EmptyActivity extends StatelessWidget {
 }
 
 class _TxRow extends StatelessWidget {
-  const _TxRow(this.tx, {required this.me, required this.pending});
+  const _TxRow(this.tx, {required this.me, required this.pending, this.onSpeedUp});
   final Map<String, dynamic> tx;
   final String me;
   final bool pending;
+  final VoidCallback? onSpeedUp;
 
   @override
   Widget build(BuildContext context) {
@@ -298,8 +330,10 @@ class _TxRow extends StatelessWidget {
     final amountColor = pending ? Colors.orange : (outgoing ? Colors.red : Colors.green);
     final counterparty = outgoing ? tx['recipientAddress'] : tx['senderAddress'];
     final statusColor = pending ? Colors.orange : Colors.green;
+    final canSpeedUp = pending && outgoing && tx['nonce'] != null && onSpeedUp != null;
     return ListTile(
       dense: true,
+      onTap: canSpeedUp ? onSpeedUp : null,
       leading: CircleAvatar(
         backgroundColor: amountColor.withValues(alpha: 0.15),
         child: Icon(pending ? Icons.hourglass_top : (outgoing ? Icons.north_east : Icons.south_west), color: amountColor, size: 20),
@@ -314,7 +348,7 @@ class _TxRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
             decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999)),
-            child: Text(pending ? 'pending'.tr : 'confirmed'.tr, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
+            child: Text(canSpeedUp ? '${'pending'.tr} · ${'speed_up'.tr}' : (pending ? 'pending'.tr : 'confirmed'.tr), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 2),
           Text(timeAgo(tx['timestamp']), style: Theme.of(context).textTheme.bodySmall),

@@ -254,6 +254,31 @@ class WalletController extends GetxController {
     await _reloadQuietly();
   }
 
+  /// Speed up a PENDING transfer: the SAME transfer (recipient, amount, memo, NONCE) signed again with a strictly higher
+  /// fee. The node keeps the higher payer and drops the other, so only the new fee is charged. `tx` is a row of the
+  /// pending list; `tx['nonce']` is reported by node 0.1.0+.
+  Future<void> speedUpTransfer(Map<String, dynamic> tx, String newFee) async {
+    _ensureUnlocked();
+    final nonce = tx['nonce'];
+    if (nonce == null) throw 'speed_up_unsupported'.tr;
+    if (!((double.tryParse(newFee) ?? 0) > (double.tryParse('${tx['fee']}') ?? 0))) throw 'speed_up_fee_low'.tr;
+    final memo = tx['data'];
+    final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
+      'networkId': networkId.value,
+      'timestamp': _now,
+      'fee': newFee.trim(),
+      'nonce': (nonce as num).toInt(),
+      'senderAddress': address.value,
+      'publicKey': _pub,
+      'recipientAddress': '${tx['recipientAddress']}',
+      'amount': '${tx['amount']}',
+      'data': (memo is String && memo.isNotEmpty) ? memo : null,
+      'privHex': _priv,
+    });
+    await _guard(() => _api.post('transactions/transfers', body));
+    await _reloadQuietly();
+  }
+
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
   Future<void> registerPromoter(String promoterKey) async {
     _ensureUnlocked();
