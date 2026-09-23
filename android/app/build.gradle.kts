@@ -25,11 +25,25 @@ android {
         versionName = flutter.versionName
     }
 
+    // Release signing from the environment (docs/md/deploy_step_by_step.md → "Publishing the wallet app downloads"):
+    // JANZEER_KEYSTORE=/path/release.jks JANZEER_KEY_ALIAS JANZEER_KEYSTORE_PASSWORD JANZEER_KEY_PASSWORD. The keystore
+    // is generated ONCE and kept offline with the anchors' seeds — every update must be signed with the same key. When
+    // unset (dev box, rehearsal) the APK is signed with the debug key so `flutter run --release` and side-loading work.
+    val ksPath = System.getenv("JANZEER_KEYSTORE")
+    if (ksPath != null && file(ksPath).exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("JANZEER_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("JANZEER_KEY_ALIAS") ?: "janzeer"
+                keyPassword = System.getenv("JANZEER_KEY_PASSWORD") ?: System.getenv("JANZEER_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (ksPath != null && file(ksPath).exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 }
