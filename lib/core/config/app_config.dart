@@ -11,7 +11,9 @@ class AppConfig {
   static const int maxMemo = 256; // TransferTransactionValidator.MAX_DATA_SIZE
   static const String unit = 'JNZ'; // native-coin ticker (display only)
 
-  /// Default node REST base URL (overridable in Settings). `10.0.2.2` is the host loopback from the Android
-  /// emulator; desktop/web use `localhost`.
-  static const String defaultNodeUrl = 'http://127.0.0.1:7019/api/v1/';
+  /// Default node REST base URL (overridable in Settings): the public mainnet API. A first-time user must not
+  /// see a dead localhost node (online test 2026-09-23, Flutter pass). For a local dev net set Settings → Node URL to
+  /// `http://10.0.2.2:7019/api/v1/` (Android emulator → host loopback) or `http://127.0.0.1:7019/api/v1/` (desktop).
+  static const String defaultNodeUrl = 'https://node1.janzeer.org/api/v1/';
+  static const String localNodeUrl = 'http://127.0.0.1:7019/api/v1/';
 }
