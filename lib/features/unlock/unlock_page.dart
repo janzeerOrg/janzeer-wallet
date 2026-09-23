@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 
 import '../../app/routes/app_routes.dart';
 import '../../core/responsive/responsive.dart';
+import '../../core/theme/jz_tokens.dart';
+import '../../core/ui/jz.dart';
 import '../wallet/wallet_controller.dart';
 
 /// Password unlock (when no app-lock is set): decrypts the vault with the wallet password.
@@ -31,8 +33,7 @@ class _UnlockPageState extends State<UnlockPage> {
       Get.offAllNamed(Routes.home);
     } catch (e) {
       final s = e is String ? e : e.toString().replaceFirst('Exception: ', '');
-      Get.snackbar('', s == 'incorrect_password' ? 'incorrect_password'.tr : s,
-          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+      jzToast(s == 'incorrect_password' ? 'incorrect_password'.tr : s, error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -40,10 +41,12 @@ class _UnlockPageState extends State<UnlockPage> {
 
   void _forget() {
     Get.dialog<void>(AlertDialog(
+      title: Text('forget_wallet'.tr),
       content: Text('forget_confirm'.tr),
       actions: [
-        TextButton(onPressed: () => Get.back<void>(), child: Text('lock'.tr)),
+        TextButton(onPressed: () => Get.back<void>(), child: Text('cancel'.tr)),
         FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: JzColors.of(context).danger, foregroundColor: Colors.white),
           onPressed: () {
             _wallet.forget();
             Get.back<void>();
@@ -57,6 +60,7 @@ class _UnlockPageState extends State<UnlockPage> {
 
   @override
   Widget build(BuildContext context) {
+    final c = JzColors.of(context);
     return Scaffold(
       body: SafeArea(
         child: ContentColumn(
@@ -66,24 +70,27 @@ class _UnlockPageState extends State<UnlockPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.lock_outline, size: 48),
-                const SizedBox(height: 12),
+                const Center(child: JzMark(size: 64)),
+                gap16,
                 Text('locked'.tr, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
-                Text(_wallet.address.value, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: 'password'.tr),
-                  onSubmitted: (_) => _unlock(),
+                gap8,
+                Center(child: JzAddressPill(_wallet.address.value)),
+                gap24,
+                JzCard(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    TextField(
+                      controller: _password,
+                      obscureText: true,
+                      autofocus: true,
+                      decoration: InputDecoration(hintText: 'password'.tr, prefixIcon: const Icon(Icons.lock_outline, size: 20)),
+                      onSubmitted: (_) => _unlock(),
+                    ),
+                    gap12,
+                    JzPrimaryButton(label: 'unlock'.tr, icon: Icons.lock_open_rounded, busy: _busy, onPressed: _busy ? null : _unlock),
+                  ]),
                 ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _unlock,
-                  icon: const Icon(Icons.lock_open),
-                  label: Text('unlock'.tr),
-                ),
-                TextButton(onPressed: _forget, child: Text('forget_wallet'.tr)),
+                gap12,
+                TextButton(onPressed: _forget, child: Text('forget_wallet'.tr, style: TextStyle(color: c.faint))),
               ],
             ),
           ),

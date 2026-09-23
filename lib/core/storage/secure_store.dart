@@ -39,7 +39,7 @@ class SecureStore {
   static int get themePreset => _box.read(_kThemePreset) as int? ?? 0;
   static set themePreset(int v) => _box.write(_kThemePreset, v);
 
-  static bool get themeDark => _box.read(_kThemeDark) as bool? ?? false;
+  static bool get themeDark => _box.read(_kThemeDark) as bool? ?? true;   // dark by default, like the explorer
   static set themeDark(bool v) => _box.write(_kThemeDark, v);
 
   static String get locale => _box.read(_kLocale) as String? ?? 'en';

@@ -1,0 +1,4 @@
+# Test configuration.
+tags:
+  screenshots:
+    skip: "review aid — regenerate with: flutter test --run-skipped --tags screenshots --update-goldens test/screenshots_test.dart"

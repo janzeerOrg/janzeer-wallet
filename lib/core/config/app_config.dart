@@ -16,4 +16,7 @@ class AppConfig {
   /// `http://10.0.2.2:7019/api/v1/` (Android emulator → host loopback) or `http://127.0.0.1:7019/api/v1/` (desktop).
   static const String defaultNodeUrl = 'https://node1.janzeer.org/api/v1/';
   static const String localNodeUrl = 'http://127.0.0.1:7019/api/v1/';
+  /// Shown in Settings → About and in the download rows; keep equal to pubspec.yaml `version`.
+  static const String appVersion = '1.1.0';
+  static const String explorerUrl = 'https://explorer.janzeer.org';
 }

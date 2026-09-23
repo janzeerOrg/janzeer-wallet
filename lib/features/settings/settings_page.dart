@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/routes/app_routes.dart';
+import '../../core/config/app_config.dart';
 import '../../core/localization/locale_controller.dart';
 import '../../core/lock/lock_controller.dart';
 import '../../core/storage/secure_store.dart';
+import '../../core/theme/jz_tokens.dart';
 import '../../core/theme/theme_controller.dart';
-import '../../core/theme/theme_presets.dart';
+import '../../core/ui/jz.dart';
+import '../onboarding/onboarding_page.dart';
 import '../wallet/wallet_controller.dart';
 
+/// Settings: Security (app lock), Backup (recovery phrase after the password), Network (node), Language, Theme,
+/// About, and the way to forget the wallet on this device.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -16,7 +22,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // Owned by state (not recreated every build, and disposed properly). (settings polish)
   final _nodeCtrl = TextEditingController(text: SecureStore.nodeUrl);
 
   @override
@@ -31,122 +36,176 @@ class _SettingsPageState extends State<SettingsPage> {
     final locale = Get.find<LocaleController>();
     final lock = Get.find<LockController>();
     final wallet = Get.find<WalletController>();
+    final c = JzColors.of(context);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(JzSpace.s4),
       children: [
-        // Language
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('language'.tr, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Obx(() => SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'en', label: Text('English')),
-                        ButtonSegment(value: 'ar', label: Text('العربية')),
-                      ],
-                      selected: {locale.code.value},
-                      onSelectionChanged: (s) => locale.setLocale(s.first),
-                    )),
-              ],
+        _Section(
+          title: 'security'.tr,
+          icon: Icons.shield_outlined,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('app_lock_sub'.tr, style: TextStyle(fontSize: 12.5, color: c.muted)),
+            gap8,
+            Obx(() => SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(value: 'none', label: Text('lock_none'.tr), icon: const Icon(Icons.password, size: 16)),
+                    ButtonSegment(value: 'pin', label: Text('lock_pin'.tr), icon: const Icon(Icons.pin_outlined, size: 16)),
+                    ButtonSegment(value: 'biometric', label: Text('lock_biometric'.tr), icon: const Icon(Icons.fingerprint, size: 16)),
+                  ],
+                  selected: {lock.mode.value},
+                  onSelectionChanged: (s) => _changeLock(context, s.first, lock, wallet),
+                )),
+          ]),
+        ),
+        gap12,
+        _Section(
+          title: 'backup'.tr,
+          icon: Icons.key_outlined,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('never_share'.tr, style: TextStyle(fontSize: 12.5, color: c.muted)),
+            gap8,
+            JzGhostButton(label: 'show_phrase'.tr, icon: Icons.visibility_outlined, onPressed: () => _showPhrase(wallet)),
+          ]),
+        ),
+        gap12,
+        _Section(
+          title: 'network'.tr,
+          icon: Icons.hub_outlined,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              ChoiceChip(
+                label: Text('${'mainnet'.tr} · ${'default_node'.tr}'),
+                selected: _nodeCtrl.text == AppConfig.defaultNodeUrl,
+                onSelected: (_) => setState(() => _nodeCtrl.text = AppConfig.defaultNodeUrl),
+              ),
+              ChoiceChip(label: Text('custom_node'.tr), selected: _nodeCtrl.text != AppConfig.defaultNodeUrl, onSelected: (_) {}),
+            ]),
+            gap12,
+            TextField(
+              controller: _nodeCtrl,
+              autocorrect: false,
+              style: const TextStyle(fontFamily: kMono, fontSize: 13),
+              decoration: InputDecoration(hintText: AppConfig.defaultNodeUrl, prefixIcon: const Icon(Icons.link, size: 18)),
+              onChanged: (_) => setState(() {}),
             ),
-          ),
-        ),
-        // Theme
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('theme'.tr, style: Theme.of(context).textTheme.titleMedium),
-                Obx(() => SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('dark_mode'.tr),
-                      value: theme.isDark.value,
-                      onChanged: theme.setDark,
-                    )),
-                Text('color_preset'.tr),
-                const SizedBox(height: 8),
-                Obx(() => Wrap(
-                      spacing: 8,
-                      children: [
-                        for (var i = 0; i < kThemePresets.length; i++)
-                          ChoiceChip(
-                            label: Text(kThemePresets[i].name),
-                            avatar: CircleAvatar(backgroundColor: kThemePresets[i].seed, radius: 8),
-                            selected: theme.presetIndex.value == i,
-                            onSelected: (_) => theme.setPreset(i),
-                          ),
-                      ],
-                    )),
-              ],
+            gap8,
+            Obx(() {
+              final id = wallet.networkId.value;
+              return Row(children: [
+                JzTag(id.isEmpty ? 'node_unreachable'.tr : 'node_ok'.tr, kind: id.isEmpty ? JzTagKind.danger : JzTagKind.ok, icon: Icons.circle),
+                const SizedBox(width: 8),
+                Expanded(child: JzMono(id.isEmpty ? '' : '${'network_id'.tr}: $id${id == 'janzeer' ? '' : '  (${'testnet'.tr})'}', size: 12)),
+              ]);
+            }),
+            gap12,
+            JzPrimaryButton(
+              label: 'save'.tr,
+              icon: Icons.save_outlined,
+              onPressed: () {
+                SecureStore.nodeUrl = _nodeCtrl.text.trim();
+                setState(() => _nodeCtrl.text = SecureStore.nodeUrl);
+                wallet.rebuildApi();
+                wallet.reload();
+                jzToast('node_saved'.tr);
+              },
             ),
-          ),
+          ]),
         ),
-        // App lock
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('app_lock'.tr, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Obx(() => SegmentedButton<String>(
-                      segments: [
-                        ButtonSegment(value: 'none', label: Text('lock_none'.tr)),
-                        ButtonSegment(value: 'pin', label: Text('lock_pin'.tr)),
-                        ButtonSegment(value: 'biometric', label: Text('lock_biometric'.tr)),
-                      ],
-                      selected: {lock.mode.value},
-                      onSelectionChanged: (s) => _changeLock(context, s.first, lock, wallet),
-                    )),
-              ],
-            ),
-          ),
+        gap12,
+        _Section(
+          title: 'language'.tr,
+          icon: Icons.translate,
+          child: Obx(() => SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'en', label: Text('English')),
+                  ButtonSegment(value: 'ar', label: Text('العربية')),
+                ],
+                selected: {locale.code.value},
+                onSelectionChanged: (s) => locale.setLocale(s.first),
+              )),
         ),
-        // Node URL
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('node_url'.tr, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                TextField(controller: _nodeCtrl, decoration: const InputDecoration(hintText: 'https://node1.janzeer.org/api/v1/')),
-                const SizedBox(height: 6),
-                Obx(() => Text('${'network_id'.tr}: ${wallet.networkId.value}'
-                    '${wallet.networkId.value == 'janzeer' ? '' : '  (${'testnet'.tr})'}',
-                    style: Theme.of(context).textTheme.bodySmall)),
-                const SizedBox(height: 8),
-                FilledButton.tonal(
-                  onPressed: () {
-                    SecureStore.nodeUrl = _nodeCtrl.text.trim();
-                    wallet.rebuildApi();
-                    wallet.reload();
-                    Get.snackbar('', 'save'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
-                  },
-                  child: Text('save'.tr),
-                ),
-              ],
-            ),
-          ),
+        gap12,
+        _Section(
+          title: 'theme'.tr,
+          icon: Icons.dark_mode_outlined,
+          child: Obx(() => SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(value: true, label: Text('theme_dark'.tr), icon: const Icon(Icons.dark_mode_outlined, size: 16)),
+                  ButtonSegment(value: false, label: Text('theme_light'.tr), icon: const Icon(Icons.light_mode_outlined, size: 16)),
+                ],
+                selected: {theme.isDark.value},
+                onSelectionChanged: (s) => theme.setDark(s.first),
+              )),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: () => _forget(wallet, lock),
-          icon: const Icon(Icons.delete_outline),
-          label: Text('forget_wallet'.tr),
-          style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+        gap12,
+        _Section(
+          title: 'about'.tr,
+          icon: Icons.info_outline,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            JzKv('version'.tr, AppConfig.appVersion, mono: true),
+            JzKv('app_name'.tr, 'janzeer.org'),
+            gap8,
+            JzGhostButton(label: 'open_explorer'.tr, icon: Icons.open_in_new, onPressed: () => launchUrl(Uri.parse(AppConfig.explorerUrl), mode: LaunchMode.externalApplication)),
+          ]),
         ),
+        gap16,
+        JzGhostButton(label: 'forget_wallet'.tr, icon: Icons.delete_outline, danger: true, onPressed: () => _forget(wallet, lock)),
+        gap8,
+        Text('forget_sub'.tr, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: c.faint)),
+        gap24,
       ],
     );
+  }
+
+  Future<void> _showPhrase(WalletController wallet) async {
+    final password = await _askPassword();
+    if (password == null) return;
+    final mnemonic = await wallet.revealMnemonic(password);
+    if (mnemonic == null) return jzToast('incorrect_password'.tr, error: true);
+    if (!mounted) return;
+    var hidden = true;
+    await Get.dialog<void>(StatefulBuilder(builder: (ctx, setD) {
+      return AlertDialog(
+        title: Text('recovery_phrase'.tr),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SeedGrid(words: mnemonic.split(' '), hidden: hidden),
+            gap8,
+            TextButton.icon(
+              onPressed: () => setD(() => hidden = !hidden),
+              icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+              label: Text(hidden ? 'reveal'.tr : 'hide'.tr),
+            ),
+            Text('never_share'.tr, style: TextStyle(fontSize: 12, color: JzColors.of(ctx).danger)),
+          ]),
+        ),
+        actions: [FilledButton(onPressed: () => Get.back<void>(), child: Text('done'.tr))],
+      );
+    }));
+  }
+
+  Future<String?> _askPassword({String? extraLabel, TextEditingController? extra}) async {
+    final password = TextEditingController();
+    final ok = await Get.dialog<bool>(AlertDialog(
+      title: Text('password'.tr),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: password, obscureText: true, autofocus: true, decoration: InputDecoration(hintText: 'password'.tr)),
+        if (extra != null) ...[
+          gap12,
+          TextField(controller: extra, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(hintText: extraLabel)),
+        ],
+      ]),
+      actions: [
+        TextButton(onPressed: () => Get.back<bool>(result: false), child: Text('cancel'.tr)),
+        FilledButton(onPressed: () => Get.back<bool>(result: true), child: Text('save'.tr)),
+      ],
+    ));
+    if (ok != true || password.text.isEmpty) return null;
+    return password.text;
   }
 
   Future<void> _changeLock(BuildContext context, String target, LockController lock, WalletController wallet) async {
@@ -155,46 +214,27 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     // Enabling a lock requires the wallet password (proof of ownership; the unlocked keys are then cached behind the lock).
-    final password = TextEditingController();
     final pin = TextEditingController();
-    final ok = await Get.dialog<bool>(AlertDialog(
-      title: Text(target == 'pin' ? 'set_pin'.tr : 'app_lock'.tr),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(controller: password, obscureText: true, decoration: InputDecoration(labelText: 'password'.tr)),
-          if (target == 'pin')
-            TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'enter_pin'.tr)),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Get.back<bool>(result: false), child: Text('lock_none'.tr)),
-        FilledButton(onPressed: () => Get.back<bool>(result: true), child: Text('save'.tr)),
-      ],
-    ));
-    if (ok != true) return;
-    if (!await wallet.checkPassword(password.text)) {
-      Get.snackbar('', 'incorrect_password'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
-      return;
-    }
+    final password = await _askPassword(extraLabel: target == 'pin' ? 'enter_pin'.tr : null, extra: target == 'pin' ? pin : null);
+    if (password == null) return;
+    if (!await wallet.checkPassword(password)) return jzToast('incorrect_password'.tr, error: true);
     if (target == 'pin') {
-      if (pin.text.isEmpty) return;
+      if (pin.text.length < 4) return jzToast('enter_pin'.tr, error: true);
       await lock.enablePin(pin.text);
     } else {
-      if (!await lock.biometricAvailable()) {
-        Get.snackbar('', 'lock_biometric'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
-        return;
-      }
+      if (!await lock.biometricAvailable()) return jzToast('lock_biometric'.tr, error: true);
       await lock.enableBiometric();
     }
   }
 
   void _forget(WalletController wallet, LockController lock) {
     Get.dialog<void>(AlertDialog(
+      title: Text('forget_wallet'.tr),
       content: Text('forget_confirm'.tr),
       actions: [
-        TextButton(onPressed: () => Get.back<void>(), child: Text('lock_none'.tr)),
+        TextButton(onPressed: () => Get.back<void>(), child: Text('cancel'.tr)),
         FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: JzColors.of(context).danger, foregroundColor: Colors.white),
           onPressed: () {
             lock.disable();
             wallet.forget();
@@ -205,5 +245,27 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ],
     ));
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.icon, required this.child});
+  final String title;
+  final IconData icon;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final c = JzColors.of(context);
+    return JzCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.border))),
+          child: Row(children: [Icon(icon, size: 18, color: c.muted), const SizedBox(width: 10), Text(title, style: Theme.of(context).textTheme.titleSmall)]),
+        ),
+        Padding(padding: const EdgeInsets.all(14), child: child),
+      ]),
+    );
   }
 }

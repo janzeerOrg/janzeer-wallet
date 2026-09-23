@@ -244,7 +244,8 @@ class WalletController extends GetxController {
 
   int get _now => DateTime.now().millisecondsSinceEpoch;
 
-  Future<void> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
+  /// Signs and submits a transfer; returns the tx hash the node accepted (for the Sent screen / explorer link).
+  Future<String?> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
     _ensureUnlocked();
     final nonce = await _guard(() => _api.nonce(address.value));
     // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
@@ -260,8 +261,9 @@ class WalletController extends GetxController {
       'data': (data != null && data.isNotEmpty) ? data : null,
       'privHex': _priv,
     });
-    await _guard(() => _api.post('transactions/transfers', body));
+    final r = await _guard(() => _api.post('transactions/transfers', body));
     await _reloadQuietly();
+    return r is Map ? (r['hash'] ?? body['hash'])?.toString() : body['hash']?.toString();
   }
 
   /// Speed up a PENDING transfer: the SAME transfer (recipient, amount, memo, NONCE) signed again with a strictly higher
@@ -376,6 +378,17 @@ class WalletController extends GetxController {
 
   /// Verify a password against the stored vault (used to enable an app-lock, which caches the password).
   /// Runs the 250k-iter PBKDF2 on a background isolate so it never blocks the UI. (wallet freeze fix)
+  /// The seed phrase for Settings → Backup, after the password (one 250k-round PBKDF2 on an isolate).
+  Future<String?> revealMnemonic(String password) async {
+    final v = SecureStore.vault;
+    if (v == null) return null;
+    try {
+      return await compute(vaultDecryptIsolate, [v, password]);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> checkPassword(String password) async {
     final v = SecureStore.vault;
     if (v == null) return false;
