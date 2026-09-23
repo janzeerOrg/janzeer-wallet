@@ -44,6 +44,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   mobile_scanner: ^7.2.0
+  image_picker: ^1.2.1        # "scan from image": pick a photo, decode it with mobile_scanner.analyzeImage
 
 dev_dependencies:
   flutter_test:

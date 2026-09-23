@@ -119,7 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Text('node_url'.tr, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                TextField(controller: _nodeCtrl, decoration: const InputDecoration(hintText: 'http://host:7019/api/v1/')),
+                TextField(controller: _nodeCtrl, decoration: const InputDecoration(hintText: 'https://node1.janzeer.org/api/v1/')),
                 const SizedBox(height: 6),
                 Obx(() => Text('${'network_id'.tr}: ${wallet.networkId.value}'
                     '${wallet.networkId.value == 'janzeer' ? '' : '  (${'testnet'.tr})'}',
@@ -154,7 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
       lock.disable();
       return;
     }
-    // Enabling a lock requires the wallet password (to cache it behind the lock).
+    // Enabling a lock requires the wallet password (proof of ownership; the unlocked keys are then cached behind the lock).
     final password = TextEditingController();
     final pin = TextEditingController();
     final ok = await Get.dialog<bool>(AlertDialog(
@@ -179,13 +179,13 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     if (target == 'pin') {
       if (pin.text.isEmpty) return;
-      await lock.enablePin(pin.text, password.text);
+      await lock.enablePin(pin.text);
     } else {
       if (!await lock.biometricAvailable()) {
         Get.snackbar('', 'lock_biometric'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
         return;
       }
-      await lock.enableBiometric(password.text);
+      await lock.enableBiometric();
     }
   }
 

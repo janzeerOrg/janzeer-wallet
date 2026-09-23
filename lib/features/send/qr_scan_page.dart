@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// Full-screen QR scanner. Pops with the first decoded string via `Get.back(result:)`, or null if cancelled.
@@ -20,6 +21,20 @@ class _QrScanPageState extends State<QrScanPage> {
     super.dispose();
   }
 
+  /// Decode a QR from a photo/screenshot (owner's request 2026-09-23: the camera is not the only way).
+  Future<void> _fromImage() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (file == null || _done) return;
+    final capture = await _controller.analyzeImage(file.path);
+    final raw = capture?.barcodes.isNotEmpty == true ? capture!.barcodes.first.rawValue : null;
+    if (raw == null || raw.isEmpty) {
+      Get.snackbar('', 'no_qr_found'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+      return;
+    }
+    _done = true;
+    Get.back<String>(result: raw);
+  }
+
   void _onDetect(BarcodeCapture capture) {
     if (_done || capture.barcodes.isEmpty) return;
     final raw = capture.barcodes.first.rawValue;
@@ -35,6 +50,7 @@ class _QrScanPageState extends State<QrScanPage> {
         title: Text('scan_qr'.tr),
         actions: [
           IconButton(icon: const Icon(Icons.flash_on), onPressed: () => _controller.toggleTorch()),
+          IconButton(icon: const Icon(Icons.photo_library_outlined), tooltip: 'from_image'.tr, onPressed: _fromImage),
         ],
       ),
       body: Stack(

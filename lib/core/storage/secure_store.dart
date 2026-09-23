@@ -20,6 +20,8 @@ class SecureStore {
   static const _kNodeUrl = 'nodeUrl';
   static const _kLockMode = 'lockMode';
   static const _kCachedPassword = 'cachedPassword';
+  static const _kCachedKeys = 'cachedKeys';
+  static const _kPin = 'pin';
 
   // Vault (encrypted mnemonic blob) + the public address (shown while locked).
   static Map<String, dynamic>? get vault {
@@ -43,8 +45,27 @@ class SecureStore {
   static String get locale => _box.read(_kLocale) as String? ?? 'en';
   static set locale(String v) => _box.write(_kLocale, v);
 
-  static String get nodeUrl => _box.read(_kNodeUrl) as String? ?? AppConfig.defaultNodeUrl;
-  static set nodeUrl(String v) => _box.write(_kNodeUrl, v);
+  static String get nodeUrl => normalizeNodeUrl(_box.read(_kNodeUrl) as String? ?? AppConfig.defaultNodeUrl);
+  static set nodeUrl(String v) => _box.write(_kNodeUrl, normalizeNodeUrl(v));
+
+  /// A public host is always https (a typed `http://node1.janzeer.org/…` hit nginx's 301 and every POST failed —
+  /// online test 2026-09-23); loopback / private / .local hosts keep their scheme (dev nets, emulator 10.0.2.2).
+  static String normalizeNodeUrl(String raw) {
+    var v = raw.trim();
+    if (v.isEmpty) return AppConfig.defaultNodeUrl;
+    if (!v.contains('://')) v = 'https://$v';
+    final u = Uri.tryParse(v);
+    if (u == null) return v;
+    final h = u.host;
+    final private = h == 'localhost' ||
+        h.endsWith('.local') ||
+        RegExp(r'^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)').hasMatch(h) ||
+        h == '::1';
+    final scheme = (u.scheme == 'http' && !private) ? 'https' : u.scheme;
+    var out = u.replace(scheme: scheme).toString();
+    if (!out.endsWith('/')) out += '/';
+    return out;
+  }
 
   /// App-lock mode: 'none' | 'pin' | 'biometric'.
   static String get lockMode => _box.read(_kLockMode) as String? ?? 'none';
@@ -56,10 +77,23 @@ class SecureStore {
   static set cachedPassword(String? v) =>
       v == null ? _box.remove(_kCachedPassword) : _box.write(_kCachedPassword, v);
 
+  /// The unlocked account {priv, pub, address} behind the app-lock (PIN/biometric): releasing it is instant, while
+  /// the password path re-runs the vault's 250k-round PBKDF2 + derivation (7–8 s on a phone — online test 2026-09-23).
+  /// The store itself is encrypted at rest; the vault (password-sealed) stays the backup of record.
+  static Map<String, String>? get cachedKeys {
+    final raw = _box.read(_kCachedKeys);
+    return raw == null ? null : Map<String, String>.from(jsonDecode(raw as String) as Map);
+  }
+  static set cachedKeys(Map<String, String>? v) =>
+      v == null ? _box.remove(_kCachedKeys) : _box.write(_kCachedKeys, jsonEncode(v));
+  static String? get pin => _box.read(_kPin) as String?;
+  static set pin(String? v) => v == null ? _box.remove(_kPin) : _box.write(_kPin, v);
   static void clearWallet() {
     _box.remove(_kVault);
     _box.remove(_kAddress);
     _box.remove(_kCachedPassword);
+    _box.remove(_kCachedKeys);
+    _box.remove(_kPin);
     _box.remove(_kLockMode);
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../../core/lock/lock_controller.dart';
+
 import '../../app/routes/app_routes.dart';
 import '../../core/responsive/responsive.dart';
 import '../wallet/wallet_controller.dart';
@@ -47,12 +49,27 @@ class _OnboardingPageState extends State<OnboardingPage> {
       } else {
         await _wallet.importWallet(_mnemonic.text, _password.text);
       }
-      Get.offAllNamed(Routes.home);
+      await _offerBiometric();
+    Get.offAllNamed(Routes.home);
     } catch (e) {
       _toast(_msg(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// First run: offer fingerprint/face unlock so the password is typed once (owner's request 2026-09-23).
+  Future<void> _offerBiometric() async {
+    final lock = Get.find<LockController>();
+    if (!await lock.biometricAvailable()) return;
+    final yes = await Get.dialog<bool>(AlertDialog(
+      content: Text('enable_biometric_q'.tr),
+      actions: [
+        TextButton(onPressed: () => Get.back<bool>(result: false), child: Text('later'.tr)),
+        FilledButton(onPressed: () => Get.back<bool>(result: true), child: Text('enable'.tr)),
+      ],
+    ));
+    if (yes == true) await lock.enableBiometric();
   }
 
   Future<void> _showBackup(String mnemonic) async {

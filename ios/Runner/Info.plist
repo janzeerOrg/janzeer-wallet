@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pick a photo that contains a QR code to scan an address.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is used to scan a recipient's QR code when sending.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

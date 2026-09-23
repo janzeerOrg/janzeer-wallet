@@ -105,6 +105,16 @@ class WalletController extends GetxController {
     unlocked.value = true;
   }
 
+  /// The unlocked account for the app-lock cache (see SecureStore.cachedKeys); null while locked.
+  Map<String, String>? sessionKeys() =>
+      unlocked.value ? {'priv': _priv, 'pub': _pub, 'address': address.value} : null;
+
+  /// Instant unlock from the app-lock cache: no vault decryption, no derivation.
+  void restoreSession(Map<String, String> keys) {
+    _setAccount(keys);
+    unawaited(reload());
+  }
+
   Future<String> createWallet(String password, {int strength = 128}) async {
     final mnemonic = jc.generateMnemonic(strength: strength);
     // Derivation (PBKDF2-SHA512 + EC) and vault sealing (250k-iter PBKDF2) run on background isolates via
