@@ -23,10 +23,13 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _nodeCtrl = TextEditingController(text: SecureStore.nodeUrl);
+  final _nodeFocus = FocusNode();
+  bool _custom = SecureStore.nodeUrl != AppConfig.defaultNodeUrl;
 
   @override
   void dispose() {
     _nodeCtrl.dispose();
+    _nodeFocus.dispose();
     super.dispose();
   }
 
@@ -77,18 +80,32 @@ class _SettingsPageState extends State<SettingsPage> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               ChoiceChip(
                 label: Text('${'mainnet'.tr} · ${'default_node'.tr}'),
-                selected: _nodeCtrl.text == AppConfig.defaultNodeUrl,
-                onSelected: (_) => setState(() => _nodeCtrl.text = AppConfig.defaultNodeUrl),
+                selected: !_custom,
+                onSelected: (_) => setState(() {
+                  _custom = false;
+                  _nodeCtrl.text = AppConfig.defaultNodeUrl;
+                }),
               ),
-              ChoiceChip(label: Text('custom_node'.tr), selected: _nodeCtrl.text != AppConfig.defaultNodeUrl, onSelected: (_) {}),
+              ChoiceChip(
+                label: Text('custom_node'.tr),
+                selected: _custom,
+                onSelected: (_) {
+                  setState(() {
+                    _custom = true;
+                    if (_nodeCtrl.text == AppConfig.defaultNodeUrl) _nodeCtrl.clear();
+                  });
+                  _nodeFocus.requestFocus();
+                },
+              ),
             ]),
             gap12,
             TextField(
               controller: _nodeCtrl,
+              focusNode: _nodeFocus,
               autocorrect: false,
               style: const TextStyle(fontFamily: kMono, fontSize: 13),
               decoration: InputDecoration(hintText: AppConfig.defaultNodeUrl, prefixIcon: const Icon(Icons.link, size: 18)),
-              onChanged: (_) => setState(() {}),
+              onChanged: (v) => setState(() => _custom = v.trim() != AppConfig.defaultNodeUrl),
             ),
             gap8,
             Obx(() {
@@ -161,36 +178,75 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// One dialog: password → (PBKDF2 on an isolate) → the words in the same dialog. Two chained dialogs
+  /// (password, then a second one) sometimes never showed the second on Android until the app repainted
+  /// (owner, 2026-09-24).
   Future<void> _showPhrase(WalletController wallet) async {
-    final password = await _askPassword();
-    if (password == null) return;
-    final mnemonic = await wallet.revealMnemonic(password);
-    if (mnemonic == null) return jzToast('incorrect_password'.tr, error: true);
-    if (!mounted) return;
+    final password = TextEditingController();
+    String? mnemonic;
+    var busy = false;
     var hidden = true;
-    await Get.dialog<void>(StatefulBuilder(builder: (ctx, setD) {
-      return AlertDialog(
-        title: Text('recovery_phrase'.tr),
-        content: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            SeedGrid(words: mnemonic.split(' '), hidden: hidden),
-            gap8,
-            TextButton.icon(
-              onPressed: () => setD(() => hidden = !hidden),
-              icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
-              label: Text(hidden ? 'reveal'.tr : 'hide'.tr),
-            ),
-            Text('never_share'.tr, style: TextStyle(fontSize: 12, color: JzColors.of(ctx).danger)),
-          ]),
-        ),
-        actions: [FilledButton(onPressed: () => Get.back<void>(), child: Text('done'.tr))],
-      );
-    }));
+    String? error;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final c = JzColors.of(ctx);
+        Future<void> reveal() async {
+          if (password.text.isEmpty || busy) return;
+          setD(() {
+            busy = true;
+            error = null;
+          });
+          final m = await wallet.revealMnemonic(password.text);
+          setD(() {
+            busy = false;
+            if (m == null) {
+              error = 'incorrect_password'.tr;
+            } else {
+              mnemonic = m;
+            }
+          });
+        }
+
+        return AlertDialog(
+          title: Text('recovery_phrase'.tr),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (mnemonic == null) ...[
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  autofocus: true,
+                  enabled: !busy,
+                  decoration: InputDecoration(hintText: 'password'.tr, errorText: error),
+                  onSubmitted: (_) => reveal(),
+                ),
+                gap12,
+                JzPrimaryButton(label: 'reveal'.tr, icon: Icons.visibility_outlined, busy: busy, onPressed: busy ? null : reveal),
+              ] else ...[
+                SeedGrid(words: mnemonic!.split(' '), hidden: hidden),
+                gap8,
+                TextButton.icon(
+                  onPressed: () => setD(() => hidden = !hidden),
+                  icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                  label: Text(hidden ? 'reveal'.tr : 'hide'.tr),
+                ),
+                Text('never_share'.tr, style: TextStyle(fontSize: 12, color: c.danger)),
+              ],
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(mnemonic == null ? 'cancel'.tr : 'done'.tr))],
+        );
+      }),
+    );
+    password.dispose();
   }
 
   Future<String?> _askPassword({String? extraLabel, TextEditingController? extra}) async {
     final password = TextEditingController();
-    final ok = await Get.dialog<bool>(AlertDialog(
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
       title: Text('password'.tr),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: password, obscureText: true, autofocus: true, decoration: InputDecoration(hintText: 'password'.tr)),
@@ -200,8 +256,8 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ]),
       actions: [
-        TextButton(onPressed: () => Get.back<bool>(result: false), child: Text('cancel'.tr)),
-        FilledButton(onPressed: () => Get.back<bool>(result: true), child: Text('save'.tr)),
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text('cancel'.tr)),
+        FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('save'.tr)),
       ],
     ));
     if (ok != true || password.text.isEmpty) return null;

@@ -216,7 +216,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 }
 
-/// The seed phrase as a numbered grid (3 columns), blurred until revealed.
+/// The seed phrase as numbered pills that flow to the next line — every word is shown in full (3 fixed columns cut
+/// the long ones, owner 2026-09-24). Blurred until revealed.
 class SeedGrid extends StatelessWidget {
   const SeedGrid({super.key, required this.words, this.hidden = false});
   final List<String> words;
@@ -227,29 +228,24 @@ class SeedGrid extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: c.surface2, borderRadius: JzRadius.rSm, border: Border.all(color: c.border)),
-      child: GridView.count(
-        crossAxisCount: 3,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 6,
-        crossAxisSpacing: 6,
-        childAspectRatio: 2.6,
-        children: [
-          for (var i = 0; i < words.length; i++)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              alignment: AlignmentDirectional.centerStart,
-              decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(6), border: Border.all(color: c.border)),
-              child: Row(children: [
-                Text('${i + 1}', style: TextStyle(fontSize: 10.5, color: c.faint, fontFamily: kMono, fontFeatures: kTabular)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(hidden ? '••••••' : words[i],
-                      maxLines: 1, overflow: TextOverflow.ellipsis, textDirection: TextDirection.ltr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text, fontFamily: kMono)),
-                ),
-              ]),
-            ),
-        ],
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (var i = 0; i < words.length; i++)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(6), border: Border.all(color: c.border)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('${i + 1}', style: TextStyle(fontSize: 10.5, color: c.faint, fontFamily: kMono, fontFeatures: kTabular)),
+                  const SizedBox(width: 6),
+                  Text(hidden ? '••••••' : words[i], style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text, fontFamily: kMono)),
+                ]),
+              ),
+          ],
+        ),
       ),
     );
   }
