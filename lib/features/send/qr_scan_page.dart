@@ -25,7 +25,13 @@ class _QrScanPageState extends State<QrScanPage> {
   Future<void> _fromImage() async {
     final file = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (file == null || _done) return;
-    final capture = await _controller.analyzeImage(file.path);
+    BarcodeCapture? capture;
+    try {
+      capture = await _controller.analyzeImage(file.path);
+    } catch (e) {
+      Get.snackbar('', '$e', snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+      return;
+    }
     final raw = capture?.barcodes.isNotEmpty == true ? capture!.barcodes.first.rawValue : null;
     if (raw == null || raw.isEmpty) {
       Get.snackbar('', 'no_qr_found'.tr, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
@@ -56,7 +62,24 @@ class _QrScanPageState extends State<QrScanPage> {
       body: Stack(
         alignment: Alignment.center,
         children: [
-          MobileScanner(controller: _controller, onDetect: _onDetect),
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
+            // The camera failing must never be a dead end: show the reason and keep "from image" reachable.
+            errorBuilder: (context, error) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.no_photography_outlined, size: 40, color: Colors.white70),
+                  const SizedBox(height: 12),
+                  Text('${error.errorCode.name}${error.errorDetails?.message != null ? '\n${error.errorDetails!.message}' : ''}',
+                      textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(onPressed: _fromImage, icon: const Icon(Icons.photo_library_outlined, size: 18), label: Text('from_image'.tr)),
+                ]),
+              ),
+            ),
+          ),
           IgnorePointer(
             child: Container(
               width: 240,

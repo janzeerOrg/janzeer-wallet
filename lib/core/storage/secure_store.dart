@@ -21,6 +21,7 @@ class SecureStore {
   static const _kLockMode = 'lockMode';
   static const _kCachedPassword = 'cachedPassword';
   static const _kCachedKeys = 'cachedKeys';
+  static const _kHideBalance = 'hideBalance';
   static const _kPin = 'pin';
 
   // Vault (encrypted mnemonic blob) + the public address (shown while locked).
@@ -39,6 +40,9 @@ class SecureStore {
   static int get themePreset => _box.read(_kThemePreset) as int? ?? 0;
   static set themePreset(int v) => _box.write(_kThemePreset, v);
 
+  /// Balance and amounts shown as •••• (the eye on the hero; owner's request 2026-09-24).
+  static bool get hideBalance => _box.read(_kHideBalance) as bool? ?? false;
+  static set hideBalance(bool v) => _box.write(_kHideBalance, v);
   static bool get themeDark => _box.read(_kThemeDark) as bool? ?? true;   // dark by default, like the explorer
   static set themeDark(bool v) => _box.write(_kThemeDark, v);
 

@@ -44,6 +44,13 @@ class WalletController extends GetxController {
   /// True when the node runs a testnet faucet (`POST /api/v1/faucet`).
   final hasFaucet = false.obs;
 
+  /// Privacy eye: balance and amounts rendered as •••• everywhere.
+  final hideBalance = SecureStore.hideBalance.obs;
+  void toggleHideBalance() {
+    hideBalance.value = !hideBalance.value;
+    SecureStore.hideBalance = hideBalance.value;
+  }
+
   @override
   void onInit() {
     super.onInit();

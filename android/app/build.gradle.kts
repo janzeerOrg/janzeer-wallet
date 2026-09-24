@@ -44,6 +44,11 @@ android {
     buildTypes {
         release {
             signingConfig = if (ksPath != null && file(ksPath).exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            // No R8 shrinking/obfuscation of the Java side: the release APK crashed the camera scanner with a
+            // NullPointerException inside obfuscated plugin code (`s4.c.b.a…`) that the debug build never had
+            // (owner, 2026-09-24). The Dart side is AOT-compiled anyway; the size cost is small next to the engine.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

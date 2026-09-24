@@ -85,6 +85,15 @@ class _Hero extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           JzStatLabel('balance'.tr),
+          const SizedBox(width: 6),
+          Obx(() => InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: w.toggleHideBalance,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(w.hideBalance.value ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18, color: c.muted),
+                ),
+              )),
           const Spacer(),
           Obx(() => w.loading.value
               ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: c.muted))
@@ -102,7 +111,7 @@ class _Hero extends StatelessWidget {
                 )),
         ]),
         gap8,
-        Obx(() => JzAmount(prettyAmount(w.balance.value), unit: AppConfig.unit, size: 34)),
+        Obx(() => JzAmount(w.hideBalance.value ? '••••••' : prettyAmount(w.balance.value), unit: AppConfig.unit, size: 34)),
         gap4,
         Text('balance_hint'.tr, style: TextStyle(fontSize: 12, color: c.faint)),
         gap16,
@@ -341,8 +350,8 @@ class _TxRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${outgoing ? '−' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')}',
-                style: TextStyle(fontFamily: kMono, fontFeatures: kTabular, fontSize: 14, fontWeight: FontWeight.w700, color: tone)),
+            Obx(() => Text(Get.find<WalletController>().hideBalance.value ? '••••' : '${outgoing ? '−' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')}',
+                style: TextStyle(fontFamily: kMono, fontFeatures: kTabular, fontSize: 14, fontWeight: FontWeight.w700, color: tone))),
             const SizedBox(height: 3),
             Row(mainAxisSize: MainAxisSize.min, children: [
               if (pending) ...[JzTag('pending'.tr, kind: JzTagKind.pending), const SizedBox(width: 6)],
@@ -387,7 +396,7 @@ class _TokensPanel extends StatelessWidget {
                     JzMono(shortHash('${list[i]['tokenId'] ?? ''}', head: 8, tail: 6), size: 11.5),
                   ]),
                 ),
-                JzAmount(formatToken('${list[i]['balance'] ?? '0'}', (list[i]['decimals'] as num?)?.toInt() ?? 0), unit: '${list[i]['symbol'] ?? ''}', size: 15),
+                JzAmount(w.hideBalance.value ? '••••' : formatToken('${list[i]['balance'] ?? '0'}', (list[i]['decimals'] as num?)?.toInt() ?? 0), unit: '${list[i]['symbol'] ?? ''}', size: 15),
               ]),
             ),
           ],

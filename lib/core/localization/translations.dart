@@ -12,6 +12,7 @@ class AppTranslations extends Translations {
 
 const Map<String, String> _en = {
   'activity': 'Activity',
+  'hide_balance': 'Hide balance',
   'use_password': 'Use password instead',
   'lock_no_session': 'Nothing to unlock — enter the password once, then enable the lock again in Settings.',
   'copy_address_btn': 'Copy address',
@@ -209,6 +210,7 @@ const Map<String, String> _en = {
 
 const Map<String, String> _ar = {
   'activity': 'النشاط',
+  'hide_balance': 'إخفاء الرصيد',
   'use_password': 'استخدم كلمة المرور بدلاً من ذلك',
   'lock_no_session': 'لا يوجد ما يمكن فتحه — أدخل كلمة المرور مرة واحدة ثم فعّل القفل مجدداً من الإعدادات.',
   'copy_address_btn': 'نسخ العنوان',
