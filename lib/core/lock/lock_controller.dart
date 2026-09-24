@@ -80,13 +80,20 @@ class LockController extends GetxController {
     return _release();
   }
 
-  /// Prompt biometrics, then release the account.
+  /// Prompt biometrics, then release the account. Throws a readable message when the prompt cannot be shown
+  /// (no enrolled biometrics, plugin/platform error) so the lock screen can say so instead of doing nothing.
   Future<bool> unlockWithBiometric() async {
-    final ok = await _auth.authenticate(
-      localizedReason: 'Unlock your wallet',
-      biometricOnly: true,
-    );
+    final bool ok;
+    try {
+      ok = await _auth.authenticate(
+        localizedReason: 'Unlock your wallet',
+        biometricOnly: true,
+      );
+    } catch (e) {
+      throw e.toString().replaceFirst('Exception: ', '');
+    }
     if (!ok) return false;
-    return _release();
+    if (!await _release()) throw 'lock_no_session';
+    return true;
   }
 }

@@ -33,12 +33,16 @@ class _LockPageState extends State<LockPage> {
     setState(() => _busy = true);
     try {
       if (await _lock.unlockWithBiometric()) Get.offAllNamed(Routes.home);
-    } catch (_) {
-      // user can retry
+    } catch (e) {
+      final s = '$e';
+      jzToast(s == 'lock_no_session' ? 'lock_no_session'.tr : s, error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Always available: the password opens the vault whatever the state of the biometric/PIN cache.
+  void _usePassword() => Get.offAllNamed(Routes.unlock);
 
   Future<void> _tryPin() async {
     setState(() => _busy = true);
@@ -124,6 +128,8 @@ class _LockPageState extends State<LockPage> {
                   gap24,
                   _PinPad(onKey: _key, onDone: _pin.isEmpty ? null : _tryPin, busy: _busy),
                 ],
+                gap16,
+                TextButton.icon(onPressed: _usePassword, icon: const Icon(Icons.password, size: 18), label: Text('use_password'.tr)),
               ],
             ),
           ),
