@@ -21,9 +21,17 @@ NAME="janzeer-wallet-$VER"
 say() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 
 build_android() {
+  # A public release must carry the release key: refuse to produce a debug-signed APK by accident. ALLOW_DEBUG_KEY=1
+  # is for rehearsal builds only (they cannot be updated by a release-signed APK later).
+  if [ -z "${JANZEER_KEYSTORE:-}" ] || [ ! -f "${JANZEER_KEYSTORE/#\~/$HOME}" ]; then
+    [ "${ALLOW_DEBUG_KEY:-0}" = 1 ] || { echo "JANZEER_KEYSTORE is not set (or the file is missing): this APK would be DEBUG-signed."; echo "Set JANZEER_KEYSTORE / JANZEER_KEY_ALIAS / JANZEER_KEYSTORE_PASSWORD, or ALLOW_DEBUG_KEY=1 for a rehearsal build."; exit 3; }
+    say "android: DEBUG-signed build (ALLOW_DEBUG_KEY=1)"
+  else export JANZEER_KEYSTORE="${JANZEER_KEYSTORE/#\~/$HOME}"; say "android: signing with $JANZEER_KEYSTORE (alias ${JANZEER_KEY_ALIAS:-janzeer})"; fi
   say "android: flutter build apk --release ($VER)"
   flutter build apk --release
   cp build/app/outputs/flutter-apk/app-release.apk "$OUT/$NAME-android.apk"
+  local signer; signer=$(ls -d "${ANDROID_HOME:-$HOME/Android/Sdk}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)apksigner
+  [ -x "$signer" ] && "$signer" verify --print-certs "$OUT/$NAME-android.apk" | grep -E "SHA-256|DN:" | sed 's/^/    /'
 }
 build_linux() {
   say "linux: flutter build linux --release ($VER)"
