@@ -12,6 +12,10 @@ class AppTranslations extends Translations {
 
 const Map<String, String> _en = {
   'activity': 'Activity',
+  'select_qr_area': 'Select the QR code',
+  'select_qr_hint': 'No code was found in the whole picture. Move the square over the QR code, or pinch and drag the picture, then scan.',
+  'scan_area': 'Scan this area',
+  'no_qr_in_area': 'No QR code in this area — adjust the square and try again',
   'hide_balance': 'Hide balance',
   'use_password': 'Use password instead',
   'lock_no_session': 'Nothing to unlock — enter the password once, then enable the lock again in Settings.',
@@ -210,6 +214,10 @@ const Map<String, String> _en = {
 
 const Map<String, String> _ar = {
   'activity': 'النشاط',
+  'select_qr_area': 'حدد رمز QR',
+  'select_qr_hint': 'لم يُعثر على رمز في الصورة كاملة. حرّك المربع فوق رمز QR، أو كبّر الصورة وحرّكها، ثم امسح.',
+  'scan_area': 'امسح هذه المنطقة',
+  'no_qr_in_area': 'لا يوجد رمز QR في هذه المنطقة — عدّل المربع وحاول مجدداً',
   'hide_balance': 'إخفاء الرصيد',
   'use_password': 'استخدم كلمة المرور بدلاً من ذلك',
   'lock_no_session': 'لا يوجد ما يمكن فتحه — أدخل كلمة المرور مرة واحدة ثم فعّل القفل مجدداً من الإعدادات.',

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.1+3
+version: 1.1.2+4
 
 environment:
   sdk: ^3.12.2
@@ -46,6 +46,7 @@ dependencies:
   mobile_scanner: ^7.2.0
   url_launcher: ^6.3.1        # "open in explorer" links
   image_picker: ^1.2.1        # "scan from image": pick a photo, decode it with mobile_scanner.analyzeImage
+  crop_your_image: ^2.0.0
 
 dev_dependencies:
   plugin_platform_interface: ^2.1.8   # MockPlatformInterfaceMixin for the screenshot harness

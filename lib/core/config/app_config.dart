@@ -17,6 +17,6 @@ class AppConfig {
   static const String defaultNodeUrl = 'https://node1.janzeer.org/api/v1/';
   static const String localNodeUrl = 'http://127.0.0.1:7019/api/v1/';
   /// Shown in Settings → About and in the download rows; keep equal to pubspec.yaml `version`.
-  static const String appVersion = '1.1.1';
+  static const String appVersion = '1.1.2';
   static const String explorerUrl = 'https://explorer.janzeer.org';
 }

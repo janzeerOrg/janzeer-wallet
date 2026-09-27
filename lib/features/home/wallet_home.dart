@@ -164,15 +164,25 @@ class _ActivityPanelState extends State<_ActivityPanel> {
   bool _hasMore = false;
   String _error = '';
 
+  Worker? _tick;
+
   @override
   void initState() {
     super.initState();
     _initialLoad();
+    _tick = ever(_w.activityTick, (_) => _initialLoad(quiet: true));
   }
 
-  Future<void> _initialLoad() async {
+  @override
+  void dispose() {
+    _tick?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initialLoad({bool quiet = false}) async {
+    if (!mounted) return;
     setState(() {
-      _loading = true;
+      _loading = !quiet && (_pending.isEmpty && _confirmed.isEmpty);   // skeleton only on the first load
       _error = '';
     });
     try {

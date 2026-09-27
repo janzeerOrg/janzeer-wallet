@@ -44,6 +44,10 @@ class WalletController extends GetxController {
   /// True when the node runs a testnet faucet (`POST /api/v1/faucet`).
   final hasFaucet = false.obs;
 
+  /// Bumped by every reload (pull-to-refresh, after a send/speed-up) — the activity list re-fetches on it. The
+  /// list used to load once and only refresh on a screen change (owner, 2026-09-24).
+  final activityTick = 0.obs;
+
   /// Privacy eye: balance and amounts rendered as •••• everywhere.
   final hideBalance = SecureStore.hideBalance.obs;
   void toggleHideBalance() {
@@ -183,6 +187,7 @@ class WalletController extends GetxController {
   void confirmBackup() => backupMnemonic = null;
 
   Future<void> reload() async {
+    activityTick.value++;
     if (address.value.isEmpty) return;
     loading.value = true;
     try {
@@ -238,6 +243,7 @@ class WalletController extends GetxController {
   /// the send has succeeded, so a follow-up reload timeout must not be reported as a failed send (which used
   /// to leave the form filled and show a false error). (send-field fix)
   Future<void> _reloadQuietly() async {
+    activityTick.value++;
     try {
       await reload();
     } catch (_) {
