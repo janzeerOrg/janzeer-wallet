@@ -76,7 +76,7 @@ byte-identical to the node's reference vectors (`test/wallet-parity-vectors.json
   AES-256-GCM). The password cannot be recovered.
 - With an app lock enabled, the unlocked keys are kept in the platform's encrypted storage and released by PIN or
   biometrics.
-- Found a vulnerability? Please write to **janzeeer@proton.me** before disclosing it publicly.
+- Found a vulnerability? Please write to **security@janzeer.org** before disclosing it publicly.
 
 ## Licence
 
