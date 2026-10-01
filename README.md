@@ -19,6 +19,12 @@ f3c92989881a4ad9a33e0733ee4a4ba2520c6885c0ee719b67f264ed3b35e9f1
 
 (`apksigner verify --print-certs janzeer-wallet-<version>-android.apk`).
 
+Windows and macOS builds are not code-signed yet. Windows shows a SmartScreen notice ("More info" → "Run anyway");
+on macOS open the app the first time with right-click → Open. Check the SHA-256 first, as for every download.
+
+The app looks for a newer release once a day and from Settings → "Check for updates" (it reads one small public file,
+`latest.json`; there is no push service). It never installs anything by itself.
+
 ## What it does
 
 - Create a wallet (12 or 24 words) or restore one from its recovery phrase
@@ -26,6 +32,7 @@ f3c92989881a4ad9a33e0733ee4a4ba2520c6885c0ee719b67f264ed3b35e9f1
 - Scan a QR code with the camera or from a picture (with a crop step when the code is small)
 - Validator registration and exit, with the live status of the validators your wallet registered
 - App lock with PIN or biometrics; hide balances; recovery phrase shown only after the password
+- Tells you when a new version is out
 - Works against any Janzeer node: mainnet by default, a custom node URL in Settings
 
 ## Build from source

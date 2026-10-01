@@ -23,8 +23,15 @@ class AppConfig {
   static const List<String> legacyDefaultNodeUrls = ['https://node1.janzeer.org/api/v1/'];
   static const String localNodeUrl = 'http://127.0.0.1:7019/api/v1/';
   /// Shown in Settings → About and in the download rows; keep equal to pubspec.yaml `version`.
-  static const String appVersion = '1.2.2';
+  static const String appVersion = '1.2.3';
   static const String explorerUrl = 'https://explorer.janzeer.org';
+  /// Where the app looks for a newer release (`latest.json`, see core/update): the project's downloads host first,
+  /// the wallet's latest GitHub release as the fallback.
+  static const List<String> updateManifestUrls = [
+    'https://downloads.janzeer.org/wallet/latest.json',
+    'https://github.com/janzeerOrg/janzeer-wallet/releases/latest/download/latest.json',
+  ];
+  static const String walletPageUrl = 'https://janzeer.org/wallet';
   /// The project's announcement channel (releases, payouts, network notices).
   static const String channelUrl = 'https://t.me/janzeerorg';
 }

@@ -5,6 +5,7 @@ import '../../app/routes/app_routes.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/jz_tokens.dart';
 import '../../core/ui/jz.dart';
+import '../../core/update/update_widgets.dart';
 import '../../core/utils/format.dart';
 import '../send/qr_scan_page.dart';
 import '../send/send_page.dart';
@@ -40,6 +41,7 @@ class _WalletHomeState extends State<WalletHome> {
       child: ListView(
         padding: const EdgeInsets.all(JzSpace.s4),
         children: [
+          const UpdateBanner(),
           _Hero(w: w),
           gap12,
           Row(children: [

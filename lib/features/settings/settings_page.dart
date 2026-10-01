@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/routes/app_routes.dart';
+import '../../core/update/update_controller.dart';
+import '../../core/update/update_widgets.dart';
 import '../../core/config/app_config.dart';
 import '../../core/localization/locale_controller.dart';
 import '../../core/lock/lock_controller.dart';
@@ -167,6 +169,24 @@ class _SettingsPageState extends State<SettingsPage> {
             JzKv('app_name'.tr, 'janzeer.org'),
             gap8,
             JzGhostButton(label: 'open_explorer'.tr, icon: Icons.open_in_new, onPressed: () => launchUrl(Uri.parse(AppConfig.explorerUrl), mode: LaunchMode.externalApplication)),
+            gap8,
+            Obx(() {
+              final u = Get.find<UpdateController>();
+              final has = u.available.value != null;
+              return JzGhostButton(
+                label: u.checking.value ? 'checking'.tr : (has ? 'update_available'.trParams({'v': u.available.value!.version}) : 'check_updates'.tr),
+                icon: has ? Icons.system_update_alt_rounded : Icons.refresh,
+                onPressed: u.checking.value
+                    ? null
+                    : () async {
+                        if (has) return showUpdateDialog(context);
+                        final r = await u.check(force: true);
+                        if (!context.mounted) return;
+                        if (r == true) return showUpdateDialog(context);
+                        jzToast(r == false ? 'up_to_date'.tr : 'update_check_failed'.tr, error: r == null);
+                      },
+              );
+            }),
             gap8,
             JzGhostButton(label: 'announcements'.tr, icon: Icons.campaign_outlined, onPressed: () => launchUrl(Uri.parse(AppConfig.channelUrl), mode: LaunchMode.externalApplication)),
           ]),

@@ -19,6 +19,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'package:wallet/core/config/app_config.dart';
+import 'package:wallet/core/update/update_controller.dart';
 import 'package:wallet/core/localization/locale_controller.dart';
 import 'package:wallet/core/localization/translations.dart';
 import 'package:wallet/core/lock/lock_controller.dart';
@@ -48,6 +49,15 @@ const _me = '0xd4337de2debd0ffef906ed5256c9b8ed28af26cb';
 const _other = '0xed4ed582c025f6d4ce83f100cbf005fc2b5b7220';
 
 /// The controller with the network removed: fixed balance, address and a few transfers.
+/// No network in the harness: the check is a no-op until a test sets [available] itself.
+class _FakeUpdate extends UpdateController {
+  @override
+  // ignore: must_call_super
+  void onReady() {}
+  @override
+  Future<UpdateInfo?> fetchManifest() async => null;
+}
+
 class _FakeWallet extends WalletController {
   @override
   // ignore: must_call_super — the real onInit builds the API client and hits the network
@@ -142,6 +152,7 @@ void main() {
     Get.reset();
     Get.put<WalletController>(_FakeWallet(), permanent: true);
     Get.put(LockController(), permanent: true);
+    Get.put<UpdateController>(_FakeUpdate(), permanent: true);
     Get.put(ThemeController(), permanent: true);
     Get.put(LocaleController(), permanent: true);
     tester.view.physicalSize = const Size(390 * 2, 844 * 2);
@@ -171,6 +182,10 @@ void main() {
             await t.tap(find.text(lang == 'ar' ? 'العملات' : 'Tokens').first);
           }));
     }
+    testWidgets('home update banner $suffix', (t) => shoot(t, 'home_update_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
+          Get.find<UpdateController>().available.value = UpdateInfo.tryParse(
+              '{"schema":1,"version":"9.9.9","build":99,"notes":{"en":"Faster sync.","ar":"مزامنة أسرع."},"files":{}}');
+        }));
     testWidgets('home validator registered $suffix', (t) => shoot(t, 'home_validator_registered_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
           Get.find<WalletController>().myValidators.value = [
             {'nodeKey': '03f7c8080674cb04944170b11730cca5371ebfc702592be9cc5d1ad78771b8c390', 'active': true},

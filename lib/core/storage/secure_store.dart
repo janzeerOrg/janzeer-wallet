@@ -23,6 +23,8 @@ class SecureStore {
   static const _kCachedKeys = 'cachedKeys';
   static const _kHideBalance = 'hideBalance';
   static const _kPin = 'pin';
+  static const _kLastUpdateCheck = 'lastUpdateCheck';
+  static const _kDismissedUpdate = 'dismissedUpdate';
 
   // Vault (encrypted mnemonic blob) + the public address (shown while locked).
   static Map<String, dynamic>? get vault {
@@ -35,6 +37,12 @@ class SecureStore {
 
   static String get address => _box.read(_kAddress) as String? ?? '';
   static set address(String v) => _box.write(_kAddress, v);
+
+  // Update check (core/update): when the manifest was last read, and the version the user answered "later" to.
+  static int get lastUpdateCheck => _box.read(_kLastUpdateCheck) as int? ?? 0;
+  static set lastUpdateCheck(int v) => _box.write(_kLastUpdateCheck, v);
+  static String get dismissedUpdate => _box.read(_kDismissedUpdate) as String? ?? '';
+  static set dismissedUpdate(String v) => _box.write(_kDismissedUpdate, v);
 
   // Prefs
   static int get themePreset => _box.read(_kThemePreset) as int? ?? 0;
