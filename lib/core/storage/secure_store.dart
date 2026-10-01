@@ -49,7 +49,10 @@ class SecureStore {
   static String get locale => _box.read(_kLocale) as String? ?? 'en';
   static set locale(String v) => _box.write(_kLocale, v);
 
-  static String get nodeUrl => normalizeNodeUrl(_box.read(_kNodeUrl) as String? ?? AppConfig.defaultNodeUrl);
+  static String get nodeUrl {
+    final v = normalizeNodeUrl(_box.read(_kNodeUrl) as String? ?? AppConfig.defaultNodeUrl);
+    return AppConfig.legacyDefaultNodeUrls.contains(v) ? AppConfig.defaultNodeUrl : v; // an old default follows the new one
+  }
   static set nodeUrl(String v) => _box.write(_kNodeUrl, normalizeNodeUrl(v));
 
   /// A public host is always https (a typed `http://node1.janzeer.org/…` hit nginx's 301 and every POST failed —

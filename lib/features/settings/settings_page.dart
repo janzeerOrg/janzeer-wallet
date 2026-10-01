@@ -167,6 +167,8 @@ class _SettingsPageState extends State<SettingsPage> {
             JzKv('app_name'.tr, 'janzeer.org'),
             gap8,
             JzGhostButton(label: 'open_explorer'.tr, icon: Icons.open_in_new, onPressed: () => launchUrl(Uri.parse(AppConfig.explorerUrl), mode: LaunchMode.externalApplication)),
+            gap8,
+            JzGhostButton(label: 'announcements'.tr, icon: Icons.campaign_outlined, onPressed: () => launchUrl(Uri.parse(AppConfig.channelUrl), mode: LaunchMode.externalApplication)),
           ]),
         ),
         gap16,
