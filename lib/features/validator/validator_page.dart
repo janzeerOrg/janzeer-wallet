@@ -62,10 +62,11 @@ class _ValidatorPageState extends State<ValidatorPage> {
                     children: [
                       Text('become_validator'.tr, style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(child: TextField(controller: _registerKey, decoration: InputDecoration(labelText: 'validator_key'.tr))),
-                        TextButton(onPressed: () => _registerKey.text = _wallet.publicKey, child: Text('use_my_key'.tr)),
-                      ]),
+                      // The key is the NODE's public key, never the wallet's: a registration under a key no running
+                      // node holds pays the deposit for a validator that cannot produce ("Use my key" used to offer that).
+                      TextField(controller: _registerKey, decoration: InputDecoration(labelText: 'validator_key'.tr)),
+                      const SizedBox(height: 6),
+                      Text('validator_key_hint'.tr, style: Theme.of(context).textTheme.bodySmall),
                       const SizedBox(height: 8),
                       Text('${'fee'.tr} ${AppConfig.promoterFee} · ${'deposit'.tr} ${AppConfig.promoterDeposit} (${'non_refundable'.tr})',
                           style: Theme.of(context).textTheme.bodySmall),
@@ -94,7 +95,12 @@ class _ValidatorPageState extends State<ValidatorPage> {
                       const SizedBox(height: 8),
                       Row(children: [
                         Expanded(child: TextField(controller: _exitKey, decoration: InputDecoration(labelText: 'validator_key'.tr))),
-                        TextButton(onPressed: () => _exitKey.text = _wallet.publicKey, child: Text('use_my_key'.tr)),
+                        Obx(() {
+                          final mine = _wallet.myValidators.value ?? const [];
+                          return mine.isEmpty
+                              ? const SizedBox.shrink()
+                              : TextButton(onPressed: () => _exitKey.text = '${mine.first['nodeKey']}', child: Text('use_my_key'.tr));
+                        }),
                       ]),
                       const SizedBox(height: 8),
                       Text('exit_hint'.tr, style: Theme.of(context).textTheme.bodySmall),

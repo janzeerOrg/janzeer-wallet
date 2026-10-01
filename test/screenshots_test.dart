@@ -18,6 +18,7 @@ import 'package:get/get.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'package:wallet/core/config/app_config.dart';
 import 'package:wallet/core/localization/locale_controller.dart';
 import 'package:wallet/core/localization/translations.dart';
 import 'package:wallet/core/lock/lock_controller.dart';
@@ -165,8 +166,17 @@ void main() {
       SecureStore.lockMode = 'none';
     });
     testWidgets('home $suffix', (t) => shoot(t, 'home_$suffix', const HomeShell(), dark: dark, lang: lang));
-    testWidgets('home tokens $suffix', (t) => shoot(t, 'home_tokens_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
-          await t.tap(find.text(lang == 'ar' ? 'العملات' : 'Tokens').first);
+    if (AppConfig.tokensEnabled) {
+      testWidgets('home tokens $suffix', (t) => shoot(t, 'home_tokens_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
+            await t.tap(find.text(lang == 'ar' ? 'العملات' : 'Tokens').first);
+          }));
+    }
+    testWidgets('home validator registered $suffix', (t) => shoot(t, 'home_validator_registered_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
+          Get.find<WalletController>().myValidators.value = [
+            {'nodeKey': '03f7c8080674cb04944170b11730cca5371ebfc702592be9cc5d1ad78771b8c390', 'active': true},
+            {'nodeKey': '0216a8c020eb121966258faeb0cdc06c45cad36451cd34c1f2e5b58c383be17fe7', 'active': false},
+          ];
+          await t.tap(find.text(lang == 'ar' ? 'المُصادِق' : 'Validator').first);
         }));
     testWidgets('home validator $suffix', (t) => shoot(t, 'home_validator_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
           await t.tap(find.text(lang == 'ar' ? 'المُصادِق' : 'Validator').first);

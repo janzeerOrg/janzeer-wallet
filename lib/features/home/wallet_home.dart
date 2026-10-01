@@ -55,14 +55,18 @@ class _WalletHomeState extends State<WalletHome> {
             padding: EdgeInsets.zero,
             child: Column(children: [
               JzTabs(
-                tabs: [(Icons.receipt_long_outlined, 'activity'.tr), (Icons.toll_outlined, 'tokens'.tr), (Icons.bolt_outlined, 'validator'.tr)],
+                tabs: [
+                  (Icons.receipt_long_outlined, 'activity'.tr),
+                  if (AppConfig.tokensEnabled) (Icons.toll_outlined, 'tokens'.tr),
+                  (Icons.bolt_outlined, 'validator'.tr),
+                ],
                 index: _tab,
                 onChanged: (i) => setState(() => _tab = i),
               ),
               switch (_tab) {
                 0 => const _ActivityPanel(),
-                1 => _TokensPanel(w: w),
-                _ => const _ValidatorPanel(),
+                1 when AppConfig.tokensEnabled => _TokensPanel(w: w),
+                _ => _ValidatorPanel(w: w),
               },
             ]),
           ),
@@ -423,27 +427,49 @@ class _TokensPanel extends StatelessWidget {
   }
 }
 
-/// Validator tab: what it is, and the way to the register/exit page.
+/// Validator tab: the validators THIS address registered and whether they are producing (read from the node on
+/// every refresh — the tab used to be a static text, so a registration left no trace; owner, 2026-10-01), plus
+/// the way to the register/exit page.
 class _ValidatorPanel extends StatelessWidget {
-  const _ValidatorPanel();
+  const _ValidatorPanel({required this.w});
+  final WalletController w;
   @override
   Widget build(BuildContext context) {
     final c = JzColors.of(context);
     return Padding(
       padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: c.accentWeak), child: Icon(Icons.bolt, color: c.accent, size: 20)),
-          const SizedBox(width: 12),
-          Expanded(child: Text('validator_status'.tr, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text))),
-        ]),
-        gap8,
-        Text('validator_sub'.tr, style: TextStyle(fontSize: 13, color: c.muted, height: 1.45)),
-        gap4,
-        Text('${'deposit'.tr}: 2000 ${AppConfig.unit} · ${'non_refundable'.tr}', style: TextStyle(fontSize: 12, color: c.faint)),
-        gap12,
-        JzGhostButton(label: 'manage'.tr, icon: Icons.tune, onPressed: () => Get.toNamed(Routes.validator)),
-      ]),
+      child: Obx(() {
+        final mine = w.myValidators.value;
+        final has = mine != null && mine.isNotEmpty;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: has ? c.okWeak : c.accentWeak), child: Icon(Icons.bolt, color: has ? c.ok : c.accent, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Text(mine == null ? 'validator_status'.tr : (has ? 'validator_yes'.tr : 'validator_none'.tr),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text))),
+          ]),
+          gap8,
+          if (has)
+            for (final v in mine) ...[
+              Row(children: [
+                Expanded(child: JzMono(shortHash('${v['nodeKey']}', head: 10, tail: 8), size: 12.5)),
+                JzTag(v['active'] == true ? 'validator_active'.tr : 'validator_waiting'.tr,
+                    kind: v['active'] == true ? JzTagKind.ok : JzTagKind.pending, icon: Icons.circle),
+              ]),
+              gap4,
+              Text(v['active'] == true ? 'validator_active_sub'.tr : 'validator_waiting_sub'.tr, style: TextStyle(fontSize: 12, color: c.faint, height: 1.4)),
+              gap8,
+            ]
+          else ...[
+            Text('validator_sub'.tr, style: TextStyle(fontSize: 13, color: c.muted, height: 1.45)),
+            gap4,
+            Text('${'deposit'.tr}: ${AppConfig.promoterDeposit} ${AppConfig.unit} · ${'non_refundable'.tr}', style: TextStyle(fontSize: 12, color: c.faint)),
+            gap12,
+          ],
+          JzGhostButton(label: 'manage'.tr, icon: Icons.tune, onPressed: () => Get.toNamed(Routes.validator)),
+        ]);
+      }),
     );
   }
 }

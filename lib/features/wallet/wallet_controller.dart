@@ -34,6 +34,10 @@ class WalletController extends GetxController {
   final RxList<Map<String, dynamic>> tokenBalances = <Map<String, dynamic>>[].obs;
   final RxList<Map<String, dynamic>> tokens = <Map<String, dynamic>>[].obs;
 
+  /// Validators registered BY this wallet address: { nodeKey, active } — `active` = in the current epoch's producer
+  /// set. `null` until the first successful read, so the Validator tab can tell "none" from "not loaded yet".
+  final Rxn<List<Map<String, dynamic>>> myValidators = Rxn<List<Map<String, dynamic>>>();
+
   /// Shown once after creation so the user can write it down; cleared on confirm.
   String? backupMnemonic;
 
@@ -182,6 +186,7 @@ class WalletController extends GetxController {
     nonce.value = 0;
     tokenBalances.clear();
     tokens.clear();
+    myValidators.value = null;
   }
 
   void confirmBackup() => backupMnemonic = null;
@@ -200,7 +205,7 @@ class WalletController extends GetxController {
       ]);
       balance.value = core[0] as String;
       nonce.value = core[1] as int;
-      await _reloadTokens();
+      await Future.wait([if (AppConfig.tokensEnabled) _reloadTokens(), _reloadValidators()]);
     } catch (_) {
       /* balances stay as-is; the next manual refresh retries */
     } finally {
@@ -236,6 +241,25 @@ class WalletController extends GetxController {
     }).toList());
     } catch (_) {
       /* token view is best-effort — leave the last-known lists in place */
+    }
+  }
+
+  /// Which validators did this address register, and are they producing? Best-effort like the token view.
+  Future<void> _reloadValidators() async {
+    try {
+      final me = address.value.toLowerCase();
+      final res = await Future.wait([
+        _map('validators', query: {'size': 200}),
+        _map('validators/active', query: {'size': 100}),
+      ]);
+      final active = {for (final e in (res[1]['list'] as List? ?? [])) '${(e as Map)['nodeKey']}'.toLowerCase()};
+      myValidators.value = [
+        for (final e in (res[0]['list'] as List? ?? []))
+          if ('${(e as Map)['address']}'.toLowerCase() == me)
+            {'nodeKey': '${e['nodeKey']}', 'active': active.contains('${e['nodeKey']}'.toLowerCase())},
+      ];
+    } catch (_) {
+      /* keep the last-known status */
     }
   }
 

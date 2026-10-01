@@ -9,6 +9,9 @@ class AppConfig {
   static const String promoterDeposit = '2000'; // amount-promoter-tx — NON-REFUNDABLE registration deposit (§5, §10)
   static const String tokenCreateFee = '5'; // fee-create-token-tx — exact flat fee a validator pays to CREATE a token
   static const int maxMemo = 256; // TransferTransactionValidator.MAX_DATA_SIZE
+  /// JZT-1 token screens (Tokens tab, token operations page, token balance reads). OFF for the launch builds
+  /// (owner, 2026-10-01: not tested enough yet); the code stays, flip this to bring them back.
+  static const bool tokensEnabled = false;
   static const String unit = 'JNZ'; // native-coin ticker (display only)
 
   /// Default node REST base URL (overridable in Settings): the public mainnet API. A first-time user must not

@@ -24,8 +24,7 @@ f3c92989881a4ad9a33e0733ee4a4ba2520c6885c0ee719b67f264ed3b35e9f1
 - Create a wallet (12 or 24 words) or restore one from its recovery phrase
 - Send and receive JNZ, with a memo; review before signing; speed up a pending transfer with a higher fee
 - Scan a QR code with the camera or from a picture (with a crop step when the code is small)
-- JZT-1 tokens: balances, create, mint, burn, transfer
-- Validator registration and exit
+- Validator registration and exit, with the live status of the validators your wallet registered
 - App lock with PIN or biometrics; hide balances; recovery phrase shown only after the password
 - Works against any Janzeer node: mainnet by default, a custom node URL in Settings
 
