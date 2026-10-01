@@ -32,7 +32,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-22.04, target: linux }      # an older glibc: the archive runs on more distributions
-          - { os: windows-latest, target: windows }
+          - { os: windows-2022, target: windows }    # VS 2022: the newer toolset of windows-latest rejects <experimental/coroutine>, which local_auth_windows still uses
           - { os: macos-latest, target: macos }
     runs-on: ${{ matrix.os }}
     defaults:
