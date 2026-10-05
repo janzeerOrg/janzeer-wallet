@@ -195,6 +195,8 @@ class _SettingsPageState extends State<SettingsPage> {
             }),
             gap8,
             JzGhostButton(label: 'announcements'.tr, icon: Icons.campaign_outlined, onPressed: () => launchUrl(Uri.parse(AppConfig.channelUrl), mode: LaunchMode.externalApplication)),
+            gap8,
+            JzGhostButton(label: 'follow_x'.tr, icon: Icons.alternate_email, onPressed: () => launchUrl(Uri.parse(AppConfig.xUrl), mode: LaunchMode.externalApplication)),
           ]),
         ),
         gap16,

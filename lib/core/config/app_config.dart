@@ -34,4 +34,7 @@ class AppConfig {
   static const String walletPageUrl = 'https://janzeer.org/wallet';
   /// The project's announcement channel (releases, payouts, network notices).
   static const String channelUrl = 'https://t.me/janzeerorg';
+
+  /// The project's X account (short versions of the channel announcements).
+  static const String xUrl = 'https://x.com/janzeerorg';
 }
