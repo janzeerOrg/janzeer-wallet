@@ -68,11 +68,17 @@ class _SettingsPageState extends State<SettingsPage> {
         _Section(
           title: 'backup'.tr,
           icon: Icons.key_outlined,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('never_share'.tr, style: TextStyle(fontSize: 12.5, color: c.muted)),
-            gap8,
-            JzGhostButton(label: 'show_phrase'.tr, icon: Icons.visibility_outlined, onPressed: () => _showPhrase(wallet)),
-          ]),
+          // the phrase is on the device only when the user chose so (or the wallet predates 1.2.4): show / remove it
+          child: Obx(() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (wallet.phraseStored.value) ...[
+                  Text('never_share'.tr, style: TextStyle(fontSize: 12.5, color: c.muted)),
+                  gap8,
+                  JzGhostButton(label: 'show_phrase'.tr, icon: Icons.visibility_outlined, onPressed: () => _showPhrase(wallet)),
+                  gap8,
+                  JzGhostButton(label: 'remove_phrase'.tr, icon: Icons.delete_outline, danger: true, onPressed: () => _removePhrase(wallet)),
+                ] else
+                  Text('phrase_not_stored'.tr, style: TextStyle(fontSize: 12.5, color: c.muted, height: 1.45)),
+              ])),
         ),
         gap12,
         _Section(
@@ -262,6 +268,58 @@ class _SettingsPageState extends State<SettingsPage> {
       }),
     );
     password.dispose();
+  }
+
+  /// Stop keeping the phrase on this device: explain, ask for the password, re-seal the vault with the key alone.
+  Future<void> _removePhrase(WalletController wallet) async {
+    final password = TextEditingController();
+    var busy = false;
+    String? error;
+    final removed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final c = JzColors.of(ctx);
+        Future<void> go() async {
+          if (password.text.isEmpty || busy) return;
+          setD(() {
+            busy = true;
+            error = null;
+          });
+          final ok = await wallet.removeStoredPhrase(password.text);
+          if (ok) {
+            if (ctx.mounted) Navigator.of(ctx).pop(true);
+          } else {
+            setD(() {
+              busy = false;
+              error = 'incorrect_password'.tr;
+            });
+          }
+        }
+
+        return AlertDialog(
+          title: Text('remove_phrase'.tr),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('remove_phrase_q'.tr, style: TextStyle(fontSize: 13.5, color: c.muted, height: 1.45)),
+              gap12,
+              TextField(
+                controller: password,
+                obscureText: true,
+                enabled: !busy,
+                decoration: InputDecoration(hintText: 'password'.tr, errorText: error),
+                onSubmitted: (_) => go(),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: busy ? null : () => Navigator.of(ctx).pop(false), child: Text('cancel'.tr)),
+            FilledButton(onPressed: busy ? null : go, child: Text(busy ? 'securing'.tr : 'remove'.tr)),
+          ],
+        );
+      }),
+    );
+    password.dispose();
+    if (removed == true) jzToast('phrase_removed'.tr);
   }
 
   Future<String?> _askPassword({String? extraLabel, TextEditingController? extra}) async {

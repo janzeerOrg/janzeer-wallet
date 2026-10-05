@@ -10,7 +10,8 @@ import '../../core/ui/jz.dart';
 import '../wallet/wallet_controller.dart';
 
 /// First run: create a wallet (12/24 words) or restore one. The seed phrase is shown ONCE as a numbered grid,
-/// hidden by default; then biometrics are offered so the password is typed once.
+/// hidden by default; then biometrics are offered so the password is typed once. Keeping the phrase on the device
+/// is a switch that is OFF by default (owner, 2026-10-05): without it the app holds only the signing key.
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
   @override
@@ -26,6 +27,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _showPw = false;
+  bool _keepPhrase = false; // keep the recovery phrase on this device (viewable later in Settings)
 
   @override
   void dispose() {
@@ -48,10 +50,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _busy = true);
     try {
       if (_create) {
-        final mnemonic = await _wallet.createWallet(_password.text, strength: _strength);
-        if (mounted) await _showBackup(mnemonic);
+        final mnemonic = await _wallet.createWallet(_password.text, strength: _strength, keepPhrase: _keepPhrase);
+        if (mounted) await _showBackup(mnemonic, kept: _keepPhrase);
       } else {
-        await _wallet.importWallet(_mnemonic.text, _password.text);
+        await _wallet.importWallet(_mnemonic.text, _password.text, keepPhrase: _keepPhrase);
       }
       await _offerBiometric();
       Get.offAllNamed(Routes.home);
@@ -79,9 +81,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (yes == true) await lock.enableBiometric();
   }
 
-  Future<void> _showBackup(String mnemonic) async {
+  /// The words, once. When they are NOT kept on the device this is the only time the app can show them, so the
+  /// button stays off until the user has revealed them and ticked that they are written down.
+  Future<void> _showBackup(String mnemonic, {required bool kept}) async {
     final words = mnemonic.split(' ');
     var hidden = true;
+    var seen = false;
+    var confirmed = kept;
     await Get.dialog<void>(
       StatefulBuilder(builder: (ctx, setD) {
         final c = JzColors.of(ctx);
@@ -90,12 +96,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text('write_down'.tr, style: TextStyle(fontSize: 13.5, color: c.muted, height: 1.45)),
+              if (!kept) ...[
+                gap8,
+                Text('backup_once'.tr, style: TextStyle(fontSize: 13, color: c.danger, height: 1.45, fontWeight: FontWeight.w600)),
+              ],
               gap12,
               SeedGrid(words: words, hidden: hidden),
               gap8,
               Row(children: [
                 TextButton.icon(
-                  onPressed: () => setD(() => hidden = !hidden),
+                  onPressed: () => setD(() {
+                    hidden = !hidden;
+                    seen = true;
+                  }),
                   icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
                   label: Text(hidden ? 'reveal'.tr : 'hide'.tr),
                 ),
@@ -104,22 +117,34 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: mnemonic));
                     jzToast('copied'.tr);
+                    setD(() => seen = true);
                   },
                   icon: const Icon(Icons.copy, size: 16),
                   label: Text('copy'.tr),
                 ),
               ]),
               Text('never_share'.tr, style: TextStyle(fontSize: 12, color: c.danger)),
+              if (!kept)
+                CheckboxListTile(
+                  value: confirmed,
+                  onChanged: seen ? (v) => setD(() => confirmed = v ?? false) : null,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text('backup_confirm'.tr, style: TextStyle(fontSize: 13, color: c.text, height: 1.4)),
+                ),
             ]),
           ),
           actions: [
             JzPrimaryButton(
               label: 'saved_it'.tr,
               icon: Icons.check,
-              onPressed: () {
-                _wallet.confirmBackup();
-                Get.back<void>();
-              },
+              onPressed: confirmed
+                  ? () {
+                      _wallet.confirmBackup();
+                      Get.back<void>();
+                    }
+                  : null,
             ),
           ],
         );
@@ -198,6 +223,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     TextField(controller: _confirm, obscureText: !_showPw, decoration: InputDecoration(hintText: 'confirm_password'.tr)),
                     gap8,
                     Text('password_hint'.tr, style: TextStyle(fontSize: 12, color: c.faint)),
+                    gap8,
+                    // a plain row, not a ListTile: the card paints its own background and a ListTile's ink needs a Material
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('keep_phrase'.tr, style: TextStyle(fontSize: 13.5, color: c.text, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Text((_keepPhrase ? 'keep_phrase_on' : 'keep_phrase_off').tr, style: TextStyle(fontSize: 12, color: _keepPhrase ? c.danger : c.faint, height: 1.4)),
+                        ]),
+                      ),
+                      const SizedBox(width: 8),
+                      Switch(value: _keepPhrase, onChanged: _busy ? null : (v) => setState(() => _keepPhrase = v)),
+                    ]),
                   ]),
                 ),
                 gap16,

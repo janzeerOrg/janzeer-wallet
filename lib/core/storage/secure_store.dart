@@ -14,6 +14,7 @@ class SecureStore {
 
   static const _kVault = 'vault';
   static const _kAddress = 'address';
+  static const _kPhraseStored = 'phraseStored';
   static const _kThemePreset = 'themePreset';
   static const _kThemeDark = 'themeDark';
   static const _kLocale = 'locale';
@@ -26,7 +27,8 @@ class SecureStore {
   static const _kLastUpdateCheck = 'lastUpdateCheck';
   static const _kDismissedUpdate = 'dismissedUpdate';
 
-  // Vault (encrypted mnemonic blob) + the public address (shown while locked).
+  // Vault (password-sealed secret: the recovery phrase when the user chose to keep it on the device, otherwise
+  // only the private key as `priv:<hex>`) + the public address (shown while locked).
   static Map<String, dynamic>? get vault {
     final raw = _box.read(_kVault);
     return raw == null ? null : jsonDecode(raw as String) as Map<String, dynamic>;
@@ -34,6 +36,11 @@ class SecureStore {
 
   static set vault(Map<String, dynamic>? v) =>
       v == null ? _box.remove(_kVault) : _box.write(_kVault, jsonEncode(v));
+
+  /// Whether the vault holds the recovery PHRASE (the user opted in, or the wallet was made before 1.2.4, when it was
+  /// always kept). False = the vault holds the private key only and the app cannot show the phrase.
+  static bool get phraseStored => _box.read(_kPhraseStored) as bool? ?? (_box.read(_kVault) != null);
+  static set phraseStored(bool v) => _box.write(_kPhraseStored, v);
 
   static String get address => _box.read(_kAddress) as String? ?? '';
   static set address(String v) => _box.write(_kAddress, v);
@@ -106,6 +113,7 @@ class SecureStore {
   static void clearWallet() {
     _box.remove(_kVault);
     _box.remove(_kAddress);
+    _box.remove(_kPhraseStored);
     _box.remove(_kCachedPassword);
     _box.remove(_kCachedKeys);
     _box.remove(_kPin);

@@ -1,0 +1,4 @@
+{
+  "en": "• Your recovery phrase is no longer kept on the device unless you choose it when you create or import a wallet. Settings → Backup can remove a phrase that is already stored.\n• Unlocking with the password and restoring a wallet are several times faster.",
+  "ar": "• لم تعد عبارة الاسترداد تُحفظ على الجهاز إلا إذا اخترت ذلك عند إنشاء المحفظة أو استيرادها. ومن الإعدادات ← النسخ الاحتياطي يمكنك حذف عبارة محفوظة سابقاً.\n• فتح المحفظة بكلمة المرور واستعادة المحفظة أصبحا أسرع بعدة مرات."
+}

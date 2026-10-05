@@ -10,8 +10,20 @@ import 'package:janzeer_sdk/vault.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/secure_store.dart';
 
+/// `compute()` entry point: private key (hex) → `{priv, pub, address}`.
+Map<String, String> accountFromPrivateKeyIsolate(String privHex) {
+  final a = jc.accountFromPrivateKey(privHex);
+  return {'priv': a.privHex, 'pub': a.pubHex, 'address': a.address};
+}
+
+/// What a vault holds when the recovery phrase is NOT kept on the device: the private key behind this prefix.
+const String kPrivVaultPrefix = 'priv:';
+
 /// The wallet's core state + actions. Non-custodial: the mnemonic/private key live only in memory while
 /// unlocked; only the password-encrypted vault is persisted. Mirrors j_frontend/src/store/WalletStore.js.
+///
+/// The recovery phrase stays on the device only when the user asks for it at create/import (owner, 2026-10-05):
+/// by default the vault seals the private key alone, so the app can sign but can never show the phrase again.
 ///
 /// Crypto and node transport come from `janzeer_sdk` (the official SDK; the app used to carry its own copies).
 /// Screens still consume the raw JSON shapes (`Map`s with numbers), so the reads go through [_map], which turns
@@ -37,6 +49,9 @@ class WalletController extends GetxController {
   /// Validators registered BY this wallet address: { nodeKey, active } — `active` = in the current epoch's producer
   /// set. `null` until the first successful read, so the Validator tab can tell "none" from "not loaded yet".
   final Rxn<List<Map<String, dynamic>>> myValidators = Rxn<List<Map<String, dynamic>>>();
+
+  /// True when the vault holds the recovery phrase (Settings → Backup can show it after the password).
+  final RxBool phraseStored = false.obs;
 
   /// Shown once after creation so the user can write it down; cleared on confirm.
   String? backupMnemonic;
@@ -65,6 +80,7 @@ class WalletController extends GetxController {
     _api = _client();
     hasVault.value = SecureStore.vault != null;
     address.value = SecureStore.address;
+    phraseStored.value = hasVault.value && SecureStore.phraseStored;
     _loadNodeInfo();
   }
 
@@ -130,40 +146,56 @@ class WalletController extends GetxController {
     unawaited(reload());
   }
 
-  Future<String> createWallet(String password, {int strength = 128}) async {
-    final mnemonic = jc.generateMnemonic(strength: strength);
-    // Derivation (PBKDF2-SHA512 + EC) and vault sealing (250k-iter PBKDF2) run on background isolates via
-    // compute() so the UI thread — and its button spinner — stay responsive. (wallet freeze fix)
-    _setAccount(await compute(jc.deriveAccountIsolate, mnemonic));
-    SecureStore.vault = await compute(vaultEncryptIsolate, [mnemonic, password]);
+  /// Seal the wallet under [password]. Derivation (PBKDF2-SHA512 + EC) and the vault's 250k-round PBKDF2 run on
+  /// background isolates so the UI thread and its button spinner stay responsive. When the phrase is kept, the two
+  /// run side by side; when it is not, the vault needs the derived key first. The node is never waited for.
+  Future<void> _adopt(String mnemonic, String password, bool keepPhrase) async {
+    final derive = compute(jc.deriveAccountIsolate, mnemonic);
+    final Map<String, dynamic> vault;
+    final Map<String, String> account;
+    if (keepPhrase) {
+      final sealed = compute(vaultEncryptIsolate, [mnemonic, password]);
+      account = await derive;
+      vault = await sealed;
+    } else {
+      account = await derive;
+      vault = await compute(vaultEncryptIsolate, ['$kPrivVaultPrefix${account['priv']}', password]);
+    }
+    _setAccount(account);
+    SecureStore.vault = vault;
     SecureStore.address = address.value;
+    SecureStore.phraseStored = keepPhrase;
+    phraseStored.value = keepPhrase;
     hasVault.value = true;
+    unawaited(reload());
+  }
+
+  Future<String> createWallet(String password, {int strength = 128, bool keepPhrase = false}) async {
+    final mnemonic = jc.generateMnemonic(strength: strength);
+    await _adopt(mnemonic, password, keepPhrase);
     backupMnemonic = mnemonic;
-    await reload();
     return mnemonic;
   }
 
-  Future<void> importWallet(String mnemonic, String password) async {
+  Future<void> importWallet(String mnemonic, String password, {bool keepPhrase = false}) async {
     final phrase = mnemonic.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     if (!jc.validateMnemonic(phrase)) throw 'invalid_phrase';
-    _setAccount(await compute(jc.deriveAccountIsolate, phrase));
-    SecureStore.vault = await compute(vaultEncryptIsolate, [phrase, password]);
-    SecureStore.address = address.value;
-    hasVault.value = true;
-    await reload();
+    await _adopt(phrase, password, keepPhrase);
   }
 
   Future<void> unlock(String password) async {
     final v = SecureStore.vault;
     if (v == null) throw 'No wallet';
-    final String mnemonic;
+    final String secret;
     try {
-      // 250k-iter PBKDF2 decrypt on a background isolate; a wrong password throws (GCM auth failure).
-      mnemonic = await compute(vaultDecryptIsolate, [v, password]);
+      // 250k-round PBKDF2 decrypt on a background isolate; a wrong password throws (GCM auth failure).
+      secret = await compute(vaultDecryptIsolate, [v, password]);
     } catch (_) {
       throw 'incorrect_password';
     }
-    _setAccount(await compute(jc.deriveAccountIsolate, mnemonic));
+    _setAccount(secret.startsWith(kPrivVaultPrefix)
+        ? await compute(accountFromPrivateKeyIsolate, secret.substring(kPrivVaultPrefix.length))
+        : await compute(jc.deriveAccountIsolate, secret));
     // Don't block the unlock on a network round-trip — the account is ready, navigate now and let the
     // balance/nonce/token lists populate reactively in the background (reload is resilient). Fixes the
     // "unlock button freezes" wait, especially against a slow node. (reload is now parallel + best-effort.)
@@ -181,6 +213,7 @@ class WalletController extends GetxController {
     lock();
     SecureStore.clearWallet();
     hasVault.value = false;
+    phraseStored.value = false;
     address.value = '';
     balance.value = '0';
     nonce.value = 0;
@@ -416,14 +449,37 @@ class WalletController extends GetxController {
   /// Verify a password against the stored vault (used to enable an app-lock, which caches the password).
   /// Runs the 250k-iter PBKDF2 on a background isolate so it never blocks the UI. (wallet freeze fix)
   /// The seed phrase for Settings → Backup, after the password (one 250k-round PBKDF2 on an isolate).
+  /// The recovery phrase after the password; null on a wrong password or when the phrase is not kept on the device.
   Future<String?> revealMnemonic(String password) async {
     final v = SecureStore.vault;
     if (v == null) return null;
     try {
-      return await compute(vaultDecryptIsolate, [v, password]);
+      final secret = await compute(vaultDecryptIsolate, [v, password]);
+      return secret.startsWith(kPrivVaultPrefix) ? null : secret;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Stop keeping the recovery phrase on this device: the vault is re-sealed with the private key alone (same
+  /// password). The wallet keeps working; the app can no longer show the phrase. False on a wrong password.
+  Future<bool> removeStoredPhrase(String password) async {
+    final v = SecureStore.vault;
+    if (v == null) return false;
+    final String secret;
+    try {
+      secret = await compute(vaultDecryptIsolate, [v, password]);
+    } catch (_) {
+      return false;
+    }
+    if (!secret.startsWith(kPrivVaultPrefix)) {
+      final account = await compute(jc.deriveAccountIsolate, secret);
+      if (SecureStore.address.isNotEmpty && account['address'] != SecureStore.address) return false; // never seal a key that is not this wallet's
+      SecureStore.vault = await compute(vaultEncryptIsolate, ['$kPrivVaultPrefix${account['priv']}', password]);
+    }
+    SecureStore.phraseStored = false;
+    phraseStored.value = false;
+    return true;
   }
 
   Future<bool> checkPassword(String password) async {
