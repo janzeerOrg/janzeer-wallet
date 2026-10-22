@@ -14,6 +14,11 @@
 # JANZEER_KEYSTORE=/path/release.jks JANZEER_KEY_ALIAS=… JANZEER_KEYSTORE_PASSWORD=… JANZEER_KEY_PASSWORD=… in the
 # environment: android/app/build.gradle.kts picks them up. Every later update MUST be signed with the same key.
 set -euo pipefail
+
+# The constant the app shows must equal the pubspec version (1.2.5 shipped saying 1.2.4 — 2026-10-23).
+_spec_ver=$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' pubspec.yaml | head -1)
+_app_ver=$(sed -n "s/.*appVersion = '\([0-9.]*\)'.*/\1/p" lib/core/config/app_config.dart | head -1)
+[ "$_spec_ver" = "$_app_ver" ] || { echo "version mismatch: pubspec.yaml says $_spec_ver, AppConfig.appVersion says $_app_ver — fix lib/core/config/app_config.dart" >&2; exit 1; }
 cd "$(dirname "$0")/.."
 VER=$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' pubspec.yaml | head -1)
 OUT=build/release; mkdir -p "$OUT"

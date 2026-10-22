@@ -23,7 +23,10 @@ class AppConfig {
   static const List<String> legacyDefaultNodeUrls = ['https://node1.janzeer.org/api/v1/'];
   static const String localNodeUrl = 'http://127.0.0.1:7019/api/v1/';
   /// Shown in Settings → About and in the download rows; keep equal to pubspec.yaml `version`.
-  static const String appVersion = '1.2.4';
+  /// Must equal the `version:` line of pubspec.yaml — About, the update check and the release manifest all read it.
+  /// `test/version_consistency_test.dart` fails the build when the two drift (1.2.5 shipped saying "1.2.4" and nagged
+  /// its own users about an update, 2026-10-23).
+  static const String appVersion = '1.2.6';
   static const String explorerUrl = 'https://explorer.janzeer.org';
   /// Where the app looks for a newer release (`latest.json`, see core/update): the project's downloads host first,
   /// the wallet's latest GitHub release as the fallback.
