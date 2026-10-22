@@ -163,8 +163,10 @@ class _ActivityPanel extends StatefulWidget {
 class _ActivityPanelState extends State<_ActivityPanel> {
   final _w = Get.find<WalletController>();
   final List<Map<String, dynamic>> _pending = [];
-  final List<Map<String, dynamic>> _confirmed = [];
-  int _page = 0;
+  final List<Map<String, dynamic>> _confirmed = [];   // transfers + block rewards, newest first
+  int _page = 0;          // transfers page
+  int _rewardPage = 0;    // rewards page
+  bool _hasMoreRewards = false;
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = false;
@@ -195,15 +197,20 @@ class _ActivityPanelState extends State<_ActivityPanel> {
       final results = await Future.wait([
         _w.myTransfers(unconfirmed: true, size: 20),
         _w.myTransfers(page: 0, size: 10),
+        _w.myRewards(page: 0, size: 10),
       ]);
       _pending
         ..clear()
         ..addAll(((results[0]['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
       _confirmed
         ..clear()
-        ..addAll(((results[1]['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+        ..addAll(((results[1]['list'] as List?) ?? const []).cast<Map<String, dynamic>>())
+        ..addAll(((results[2]['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      _sortConfirmed();
       _page = 0;
+      _rewardPage = 0;
       _hasMore = ((results[1]['totalPages'] as num?)?.toInt() ?? 0) > 1;
+      _hasMoreRewards = ((results[2]['totalPages'] as num?)?.toInt() ?? 0) > 1;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
     } finally {
@@ -211,14 +218,37 @@ class _ActivityPanelState extends State<_ActivityPanel> {
     }
   }
 
+  /// Newest first across both kinds (the node pages each kind separately).
+  void _sortConfirmed() {
+    num ts(Map<String, dynamic> t) => num.tryParse('${t['timestamp'] ?? 0}') ?? 0;
+    _confirmed.sort((a, b) => ts(b).compareTo(ts(a)));
+  }
+
+  static bool _isReward(Map<String, dynamic> tx) => tx.containsKey('reward');
+
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore) return;
+    if (_loadingMore || !(_hasMore || _hasMoreRewards)) return;
     setState(() => _loadingMore = true);
     try {
-      final r = await _w.myTransfers(page: _page + 1, size: 10);
-      _confirmed.addAll(((r['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
-      _page += 1;
-      _hasMore = _page + 1 < ((r['totalPages'] as num?)?.toInt() ?? 0);
+      final futures = <Future<Map<String, dynamic>>>[
+        if (_hasMore) _w.myTransfers(page: _page + 1, size: 10),
+        if (_hasMoreRewards) _w.myRewards(page: _rewardPage + 1, size: 10),
+      ];
+      final results = await Future.wait(futures);
+      var i = 0;
+      if (_hasMore) {
+        final r = results[i++];
+        _confirmed.addAll(((r['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+        _page += 1;
+        _hasMore = _page + 1 < ((r['totalPages'] as num?)?.toInt() ?? 0);
+      }
+      if (_hasMoreRewards) {
+        final r = results[i];
+        _confirmed.addAll(((r['list'] as List?) ?? const []).cast<Map<String, dynamic>>());
+        _rewardPage += 1;
+        _hasMoreRewards = _rewardPage + 1 < ((r['totalPages'] as num?)?.toInt() ?? 0);
+      }
+      _sortConfirmed();
     } catch (_) {
       // keep what we have
     } finally {
@@ -261,7 +291,32 @@ class _ActivityPanelState extends State<_ActivityPanel> {
     }
   }
 
+  void _rewardDetail(Map<String, dynamic> tx) {
+    final c = JzColors.of(context);
+    showJzSheet<void>(
+      context,
+      title: 'block_reward'.tr,
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          JzAmount('+${prettyAmount('${tx['reward'] ?? '0'}')}', unit: AppConfig.unit, size: 26, color: c.ok),
+          const Spacer(),
+          JzTag('confirmed'.tr, kind: JzTagKind.ok),
+        ]),
+        gap12,
+        Divider(color: c.border),
+        Text('block_reward_note'.tr, style: TextStyle(fontSize: 13, color: c.muted, height: 1.45)),
+        gap12,
+        JzKv('block'.tr, '${tx['blockHash'] ?? ''}', mono: true),
+        if (tx['blockHeight'] != null) JzKv('height'.tr, '${tx['blockHeight']}', mono: true),
+        JzKv('transactions'.tr, '${tx['hash'] ?? ''}', mono: true),
+        gap16,
+        JzGhostButton(label: 'done'.tr, onPressed: () => Get.back<void>()),
+      ]),
+    );
+  }
+
   void _detail(Map<String, dynamic> tx, bool pending) {
+    if (_isReward(tx)) return _rewardDetail(tx);
     final me = _w.address.value;
     final outgoing = tx['senderAddress'] == me;
     final c = JzColors.of(context);
@@ -318,7 +373,7 @@ class _ActivityPanelState extends State<_ActivityPanel> {
         if (i > 0) Divider(height: 1, color: c.border),
         _TxRow(items[i], me: me, pending: i < _pending.length, onTap: () => _detail(items[i], i < _pending.length)),
       ],
-      if (_hasMore)
+      if (_hasMore || _hasMoreRewards)
         Padding(
           padding: const EdgeInsets.all(10),
           child: TextButton.icon(
@@ -341,8 +396,10 @@ class _TxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = JzColors.of(context);
-    final outgoing = tx['senderAddress'] == me;
-    final counterparty = outgoing ? tx['recipientAddress'] : tx['senderAddress'];
+    final reward = tx.containsKey('reward');
+    final outgoing = !reward && tx['senderAddress'] == me;
+    final counterparty = reward ? tx['blockHash'] : (outgoing ? tx['recipientAddress'] : tx['senderAddress']);
+    final amount = reward ? tx['reward'] : tx['amount'];
     final tone = pending ? c.pending : (outgoing ? c.text : c.ok);
     final disc = pending ? c.pendingWeak : (outgoing ? c.surface3 : c.okWeak);
     return InkWell(
@@ -354,19 +411,19 @@ class _TxRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(shape: BoxShape.circle, color: disc),
-            child: Icon(pending ? Icons.hourglass_top_rounded : (outgoing ? Icons.north_east_rounded : Icons.south_west_rounded), size: 18, color: pending ? c.pending : (outgoing ? c.muted : c.ok)),
+            child: Icon(pending ? Icons.hourglass_top_rounded : (reward ? Icons.workspace_premium_rounded : (outgoing ? Icons.north_east_rounded : Icons.south_west_rounded)), size: 18, color: pending ? c.pending : (outgoing ? c.muted : c.ok)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(outgoing ? 'send'.tr : 'receive'.tr, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
+              Text(reward ? 'block_reward'.tr : (outgoing ? 'send'.tr : 'receive'.tr), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
               const SizedBox(height: 2),
               JzMono(shortHash('${counterparty ?? ''}', head: 8, tail: 6), size: 12),
             ]),
           ),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Obx(() => Text(Get.find<WalletController>().hideBalance.value ? '••••' : '${outgoing ? '−' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')}',
+            Obx(() => Text(Get.find<WalletController>().hideBalance.value ? '••••' : '${outgoing ? '−' : '+'}${prettyAmount('${amount ?? '0'}')}',
                 style: TextStyle(fontFamily: kMono, fontFeatures: kTabular, fontSize: 14, fontWeight: FontWeight.w700, color: tone))),
             const SizedBox(height: 3),
             Row(mainAxisSize: MainAxisSize.min, children: [

@@ -12,6 +12,9 @@ class AppTranslations extends Translations {
 
 const Map<String, String> _en = {
   'activity': 'Activity',
+  'block_reward': 'Block reward',
+  'block_reward_note': 'Paid by the chain to the validator that produced the block.',
+  'block': 'Block',
   'select_qr_area': 'Select the QR code',
   'select_qr_hint': 'No code was found in the whole picture. Move the square over the QR code, or pinch and drag the picture, then scan.',
   'scan_area': 'Scan this area',
@@ -242,6 +245,9 @@ const Map<String, String> _en = {
 
 const Map<String, String> _ar = {
   'activity': 'النشاط',
+  'block_reward': 'مكافأة كتلة',
+  'block_reward_note': 'تدفعها السلسلة للمدقق الذي أنتج الكتلة.',
+  'block': 'الكتلة',
   'select_qr_area': 'حدد رمز QR',
   'select_qr_hint': 'لم يُعثر على رمز في الصورة كاملة. حرّك المربع فوق رمز QR، أو كبّر الصورة وحرّكها، ثم امسح.',
   'scan_area': 'امسح هذه المنطقة',

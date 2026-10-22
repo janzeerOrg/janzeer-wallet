@@ -436,6 +436,11 @@ class WalletController extends GetxController {
   /// Registered validators (the old client asked a non-existent `promoters` path and always showed an empty list).
   Future<Map<String, dynamic>> promoters() => _map('validators', query: {'size': 20});
 
+  /// Block rewards this wallet received (a validator's wallet), paginated — merged into the home activity list
+  /// (wallet 1.2.5: rewards were missing from the history, owner 2026-10-16).
+  Future<Map<String, dynamic>> myRewards({int page = 0, int size = 10}) =>
+      _map('transactions/rewards', query: {'address': address.value, 'page': page, 'size': size}, empty: const {'total': 0, 'list': [], 'page': 0, 'totalPages': 0});
+
   /// This wallet's transfers (confirmed or pending), paginated — for the home activity list.
   Future<Map<String, dynamic>> myTransfers({int page = 0, int size = 10, bool unconfirmed = false}) =>
       _map('transactions/transfers', query: {'address': address.value, 'page': page, 'size': size, 'unconfirmed': unconfirmed ? true : null}, empty: const {'total': 0, 'list': [], 'page': 0, 'totalPages': 0});
