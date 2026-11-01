@@ -1,0 +1,4 @@
+{
+  "en": "• Transaction details redone: the block height now shows (the node sends only the block hash, so the app looks the block up — 1.2.6 always showed “—”), a Date row, the From/To address, block hash and transaction hash each on one line with a copy button and an “open in explorer” link.\n• Labels corrected in that sheet (“Nonce”, “Transaction”, “Memo”).",
+  "ar": "• أُعيد تصميم تفاصيل المعاملة: يظهر الآن ارتفاع الكتلة (ترسل العقدة رمز الكتلة فقط، فيستعلم التطبيق عن الكتلة؛ كان الإصدار 1.2.6 يعرض «—» دائمًا)، مع صف للتاريخ، وعنوان المرسل/المستلم ورمز الكتلة ورمز المعاملة كلٌّ في سطر واحد مع زر نسخ ورابط «فتح في المستكشف».\n• تصحيح التسميات في تلك اللوحة («الرقم التسلسلي»، «المعاملة»، «ملاحظة»)."
+}

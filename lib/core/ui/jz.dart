@@ -415,6 +415,58 @@ class JzKv extends StatelessWidget {
   }
 }
 
+/// A key/value row for a hash or an address: the value stays on ONE line (head…tail), tap copies the full value,
+/// an optional trailing icon opens it somewhere (the explorer). Replaces the wrapping two-line `JzKv` for long values.
+class JzKvCopy extends StatelessWidget {
+  const JzKvCopy(this.label, this.value, {super.key, this.head = 10, this.tail = 8, this.onOpen});
+  final String label;
+  final String value;
+  final int head, tail;
+  final VoidCallback? onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final c = JzColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        SizedBox(width: 110, child: Text(label, style: TextStyle(color: c.muted, fontSize: 13))),
+        Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: value.isEmpty
+                  ? null
+                  : () {
+                      Clipboard.setData(ClipboardData(text: value));
+                      jzToast('copied'.tr);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Flexible(child: JzMono(shortHash(value, head: head, tail: tail), color: c.text, size: 13.5)),
+                  const SizedBox(width: 6),
+                  Icon(Icons.copy_rounded, size: 14, color: c.muted),
+                  if (onOpen != null) ...[
+                    const SizedBox(width: 2),
+                    IconButton(
+                      onPressed: onOpen,
+                      icon: Icon(Icons.open_in_new_rounded, size: 16, color: c.muted),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      tooltip: 'open_explorer'.tr,
+                    ),
+                  ],
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 /// A sheet with the standard padding, title and bottom safe area.
 Future<T?> showJzSheet<T>(BuildContext context, {required Widget child, String? title, bool dismissible = true}) {
   return showModalBottomSheet<T>(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
 
 import '../../app/routes/app_routes.dart';
@@ -291,8 +292,28 @@ class _ActivityPanelState extends State<_ActivityPanel> {
     }
   }
 
+  /// Block height for a confirmed tx: from the payload when a node sends it, otherwise one `blocks/main/{hash}` read.
+  /// The node's transfer/reward responses carry only `blockHash`, so 1.2.6 showed "Height —" on every transaction.
+  Widget _heightRow(Map<String, dynamic> tx) {
+    if (tx['blockHeight'] != null) return JzKv('height'.tr, '${tx['blockHeight']}', mono: true);
+    final hash = '${tx['blockHash'] ?? ''}';
+    if (hash.isEmpty) return const SizedBox.shrink();
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _w.blockByHash(hash).catchError((_) => null),
+      builder: (_, snap) {
+        if (snap.connectionState != ConnectionState.done) return JzKv('height'.tr, '…', mono: true);
+        final h = snap.data?['height'];
+        return h == null ? const SizedBox.shrink() : JzKv('height'.tr, '$h', mono: true);
+      },
+    );
+  }
+
+  void _openExplorer(String path) => launchUrl(Uri.parse('${AppConfig.explorerUrl}$path'), mode: LaunchMode.externalApplication);
+
   void _rewardDetail(Map<String, dynamic> tx) {
     final c = JzColors.of(context);
+    final hash = '${tx['hash'] ?? ''}';
+    final block = '${tx['blockHash'] ?? ''}';
     showJzSheet<void>(
       context,
       title: 'block_reward'.tr,
@@ -306,9 +327,9 @@ class _ActivityPanelState extends State<_ActivityPanel> {
         Divider(color: c.border),
         Text('block_reward_note'.tr, style: TextStyle(fontSize: 13, color: c.muted, height: 1.45)),
         gap12,
-        JzKv('block'.tr, '${tx['blockHash'] ?? ''}', mono: true),
-        if (tx['blockHeight'] != null) JzKv('height'.tr, '${tx['blockHeight']}', mono: true),
-        JzKv('transactions'.tr, '${tx['hash'] ?? ''}', mono: true),
+        if (block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
+        _heightRow(tx),
+        if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
         gap16,
         JzGhostButton(label: 'done'.tr, onPressed: () => Get.back<void>()),
       ]),
@@ -320,6 +341,9 @@ class _ActivityPanelState extends State<_ActivityPanel> {
     final me = _w.address.value;
     final outgoing = tx['senderAddress'] == me;
     final c = JzColors.of(context);
+    final other = '${outgoing ? tx['recipientAddress'] : tx['senderAddress']}';
+    final hash = '${tx['hash'] ?? ''}';
+    final block = '${tx['blockHash'] ?? ''}';
     showJzSheet<void>(
       context,
       title: outgoing ? 'send'.tr : 'receive'.tr,
@@ -331,12 +355,14 @@ class _ActivityPanelState extends State<_ActivityPanel> {
         ]),
         gap12,
         Divider(color: c.border),
-        JzKv(outgoing ? 'recipient'.tr : 'sending_to'.tr, '${outgoing ? tx['recipientAddress'] : tx['senderAddress']}', mono: true),
+        JzKvCopy(outgoing ? 'recipient'.tr : 'sender'.tr, other, onOpen: () => _openExplorer('/address/$other')),
         JzKv('fee'.tr, '${tx['fee'] ?? ''} ${AppConfig.unit}', mono: true),
-        if ((tx['data'] ?? '').toString().isNotEmpty) JzKv('memo'.tr, '${tx['data']}'),
-        if (tx['nonce'] != null) JzKv('next_nonce'.tr, '${tx['nonce']}', mono: true),
-        JzKv('height'.tr, tx['blockHeight'] == null ? '—' : '${tx['blockHeight']}', mono: true),
-        JzKv('transactions'.tr, '${tx['hash'] ?? ''}', mono: true),
+        if ((tx['data'] ?? '').toString().isNotEmpty) JzKv('memo_label'.tr, '${tx['data']}'),
+        if (tx['nonce'] != null) JzKv('nonce'.tr, '${tx['nonce']}', mono: true),
+        if (tx['timestamp'] != null) JzKv('date'.tr, formatDateTime(tx['timestamp']), mono: true),
+        if (!pending && block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
+        if (!pending) _heightRow(tx),
+        if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
         gap16,
         if (pending && outgoing && tx['nonce'] != null)
           JzPrimaryButton(

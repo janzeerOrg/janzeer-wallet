@@ -445,6 +445,13 @@ class WalletController extends GetxController {
   Future<Map<String, dynamic>> myTransfers({int page = 0, int size = 10, bool unconfirmed = false}) =>
       _map('transactions/transfers', query: {'address': address.value, 'page': page, 'size': size, 'unconfirmed': unconfirmed ? true : null}, empty: const {'total': 0, 'list': [], 'page': 0, 'totalPages': 0});
 
+  /// The main block a confirmed transaction sits in (`blocks/main/{hash}`), null when unknown. The transfer/reward
+  /// responses carry only `blockHash`, so the detail sheet asks for the block to show its height (wallet 1.2.7).
+  Future<Map<String, dynamic>?> blockByHash(String hash) => _guard(() async {
+        final v = await _api.get('blocks/main/$hash', notFound: null);
+        return v == null ? null : Map<String, dynamic>.from(toPlainNumbers(v) as Map);
+      });
+
   // Network-wide explorer reads (used by the Explorer tab).
   Future<Map<String, dynamic>> networkInfo() => _map('explorer/info', empty: const {});
   Future<Map<String, dynamic>> latestBlocks({int size = 12}) => _map('blocks/main', query: {'size': size});

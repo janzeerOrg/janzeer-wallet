@@ -77,3 +77,13 @@ String timeAgo(dynamic ms) {
   if (s < 86400) return '${(s / 3600).floor()}h';
   return '${(s / 86400).floor()}d';
 }
+
+/// Local date and time of an epoch-millis timestamp as `YYYY-MM-DD HH:MM`, wrapped in an LTR isolate.
+String formatDateTime(dynamic ms) {
+  final n = ms is num ? ms.toInt() : int.tryParse('$ms');
+  if (n == null) return '';
+  final d = DateTime.fromMillisecondsSinceEpoch(n).toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  // LRI…PDI keeps the two numeric runs in order inside an RTL layout (otherwise Arabic shows "07:09 2026-10-30").
+  return '\u2066${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}\u2069';
+}

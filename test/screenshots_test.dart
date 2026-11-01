@@ -81,6 +81,19 @@ class _FakeWallet extends WalletController {
   void rebuildApi() {}
 
   @override
+  Future<Map<String, dynamic>?> blockByHash(String hash) async => {'height': 173455, 'hash': hash};
+
+  @override
+  Future<Map<String, dynamic>> myRewards({int page = 0, int size = 10}) async => {
+        'list': [
+          {'reward': '10', 'recipientAddress': _me, 'timestamp': DateTime.now().millisecondsSinceEpoch - 5400000, 'blockHash': '7f0e5a1c2b3d4e5f60718293a4b5c6d7e8f9011223344556677889900aabbccd', 'hash': 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00'},
+        ],
+        'total': 1,
+        'page': 0,
+        'totalPages': 1,
+      };
+
+  @override
   Future<Map<String, dynamic>> myTransfers({int page = 0, int size = 10, bool unconfirmed = false}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (unconfirmed) {
@@ -93,7 +106,7 @@ class _FakeWallet extends WalletController {
     }
     return {
       'list': [
-        {'senderAddress': _other, 'recipientAddress': _me, 'amount': '300', 'fee': '0.01', 'timestamp': now - 3600000, 'blockHeight': 17020, 'hash': '1c86f1720403c7de5253d2cae88086803375653537afca35f7b51c32e183a1f6'},
+        {'senderAddress': _other, 'recipientAddress': _me, 'amount': '300', 'fee': '0.01', 'timestamp': now - 3600000, 'blockHash': '43d26408110a2dc899e49dcd0207bdb4e797bfeedf2ba45fb1cd47c1a150b883', 'hash': '1c86f1720403c7de5253d2cae88086803375653537afca35f7b51c32e183a1f6'},
         {'senderAddress': _me, 'recipientAddress': _other, 'amount': '0.26', 'fee': '0.01', 'data': 'coffee ☕', 'timestamp': now - 7200000, 'blockHeight': 16990, 'hash': '5a83347a846de66c2d4ba7094092b9397bfcc2cb1758e2c41f22e96ee1fb2c0b'},
         {'senderAddress': _other, 'recipientAddress': _me, 'amount': '2000', 'fee': '0.01', 'timestamp': now - 86400000 * 2, 'blockHeight': 12000, 'hash': 'b13ba1c7aa00000000000000000000000000000000000000000000000000cafe'},
       ],
@@ -196,6 +209,11 @@ void main() {
     testWidgets('home validator $suffix', (t) => shoot(t, 'home_validator_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
           await t.tap(find.text(lang == 'ar' ? 'المُصادِق' : 'Validator').first);
         }));
+    testWidgets('tx detail $suffix', (t) => shoot(t, 'tx_detail_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
+      await t.drag(find.byType(Scrollable).first, const Offset(0, -700));   // the activity list sits below the fold
+      await t.pumpAndSettle();
+      await t.tap(find.byIcon(Icons.south_west_rounded).last);              // an incoming transfer row (the Receive quick action is scrolled away or earlier)
+    }));
     testWidgets('settings $suffix', (t) => shoot(t, 'settings_$suffix', const HomeShell(), dark: dark, lang: lang, after: () async {
           await t.tap(find.byIcon(Icons.settings_outlined));
         }));
