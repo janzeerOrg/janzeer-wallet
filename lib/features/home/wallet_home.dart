@@ -10,6 +10,7 @@ import '../../core/update/update_widgets.dart';
 import '../../core/utils/format.dart';
 import '../send/qr_scan_page.dart';
 import '../send/send_page.dart';
+import '../tokens/token_send_page.dart';
 import '../wallet/wallet_controller.dart';
 
 /// Wallet tab — the explorer's wallet home, on a phone: the hero (balance, address, nonce, live), three actions
@@ -172,6 +173,7 @@ class _ActivityPanelState extends State<_ActivityPanel> {
   bool _loadingMore = false;
   bool _hasMore = false;
   String _error = '';
+  int _filter = 0; // 0 all · 1 transfers · 2 rewards (a validator's rewards would otherwise bury its transfers)
 
   Worker? _tick;
 
@@ -385,7 +387,17 @@ class _ActivityPanelState extends State<_ActivityPanel> {
       return const Padding(padding: EdgeInsets.all(12), child: JzSkeletonList());
     }
     final me = _w.address.value;
-    final items = [..._pending, ..._confirmed];
+    final all = [..._pending, ..._confirmed];
+    final items = switch (_filter) { 1 => all.where((t) => !_isReward(t)).toList(), 2 => all.where(_isReward).toList(), _ => all };
+    final chips = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Row(children: [
+        for (final (i, key) in ['filter_all', 'filter_transfers', 'filter_rewards'].indexed) ...[
+          if (i > 0) const SizedBox(width: 6),
+          _FilterChip(label: key.tr, on: _filter == i, onTap: () => setState(() => _filter = i)),
+        ],
+      ]),
+    );
     if (_error.isNotEmpty) {
       return JzEmpty(
         icon: Icons.cloud_off_outlined,
@@ -393,11 +405,13 @@ class _ActivityPanelState extends State<_ActivityPanel> {
         action: JzGhostButton(label: 'refresh'.tr, icon: Icons.refresh, expand: false, onPressed: _initialLoad),
       );
     }
-    if (items.isEmpty) return JzEmpty(icon: Icons.receipt_long_outlined, text: 'no_transfers'.tr);
+    if (all.isEmpty) return JzEmpty(icon: Icons.receipt_long_outlined, text: 'no_transfers'.tr);
     return Column(children: [
+      chips,
+      if (items.isEmpty) JzEmpty(icon: Icons.filter_list_off_rounded, text: 'no_transfers'.tr),
       for (var i = 0; i < items.length; i++) ...[
         if (i > 0) Divider(height: 1, color: c.border),
-        _TxRow(items[i], me: me, pending: i < _pending.length, onTap: () => _detail(items[i], i < _pending.length)),
+        _TxRow(items[i], me: me, pending: _pending.contains(items[i]), onTap: () => _detail(items[i], _pending.contains(items[i]))),
       ],
       if (_hasMore || _hasMoreRewards)
         Padding(
@@ -426,8 +440,9 @@ class _TxRow extends StatelessWidget {
     final outgoing = !reward && tx['senderAddress'] == me;
     final counterparty = reward ? tx['blockHash'] : (outgoing ? tx['recipientAddress'] : tx['senderAddress']);
     final amount = reward ? tx['reward'] : tx['amount'];
-    final tone = pending ? c.pending : (outgoing ? c.text : c.ok);
-    final disc = pending ? c.pendingWeak : (outgoing ? c.surface3 : c.okWeak);
+    // rewards are not payments: accent tone + a tag, so a validator's 800 rewards a day never look like receipts
+    final tone = pending ? c.pending : (reward ? c.accent : (outgoing ? c.text : c.ok));
+    final disc = pending ? c.pendingWeak : (reward ? c.accentWeak : (outgoing ? c.surface3 : c.okWeak));
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -442,9 +457,15 @@ class _TxRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(reward ? 'block_reward'.tr : (outgoing ? 'send'.tr : 'receive'.tr), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
+              Row(children: [
+                Text(reward ? 'block_reward'.tr : (outgoing ? 'send'.tr : 'receive'.tr), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
+                if (reward) ...[const SizedBox(width: 6), JzTag('reward'.tr, kind: JzTagKind.accent)],
+              ]),
               const SizedBox(height: 2),
-              JzMono(shortHash('${counterparty ?? ''}', head: 8, tail: 6), size: 12),
+              Row(children: [
+                if (reward) Text('${'block'.tr} ', style: TextStyle(fontSize: 12, color: c.faint)),
+                JzMono(shortHash('${counterparty ?? ''}', head: 8, tail: 6), size: 12),
+              ]),
             ]),
           ),
           const SizedBox(width: 8),
@@ -478,7 +499,9 @@ class _TokensPanel extends StatelessWidget {
         else
           for (var i = 0; i < list.length; i++) ...[
             if (i > 0) Divider(height: 1, color: c.border),
-            Padding(
+            InkWell(
+              onTap: () => _tokenSheet(context, list[i]),
+              child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(children: [
                 Container(
@@ -496,19 +519,101 @@ class _TokensPanel extends StatelessWidget {
                   ]),
                 ),
                 JzAmount(w.hideBalance.value ? '••••' : formatToken('${list[i]['balance'] ?? '0'}', (list[i]['decimals'] as num?)?.toInt() ?? 0), unit: '${list[i]['symbol'] ?? ''}', size: 15),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded, size: 18, color: c.faint),
               ]),
+              ),
             ),
           ],
         Padding(
-          padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
           child: Row(children: [
-            Expanded(child: Text('tokens_sub'.tr, style: TextStyle(fontSize: 12.5, color: c.faint))),
+            Expanded(child: JzGhostButton(label: 'tk_send'.tr, icon: Icons.north_east_rounded, onPressed: list.isEmpty ? null : () => Get.toNamed(Routes.tokenSend))),
             const SizedBox(width: 10),
-            JzGhostButton(label: 'manage'.tr, icon: Icons.tune, expand: false, onPressed: () => Get.toNamed(Routes.tokens)),
+            Expanded(child: JzGhostButton(label: 'receive'.tr, icon: Icons.south_west_rounded, onPressed: () => Get.toNamed(Routes.receive))),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('tokens_sub'.tr, style: TextStyle(fontSize: 12.5, color: c.faint)),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                onPressed: () => Get.toNamed(Routes.tokens),
+                icon: Icon(Icons.tune, size: 15, color: c.muted),
+                label: Text('tk_issuer_tools'.tr, style: TextStyle(fontSize: 12, color: c.muted)),
+              ),
+            ),
           ]),
         ),
       ]);
     });
+  }
+
+  /// One token: balance, the full id (copy · explorer), Send this token, Receive.
+  void _tokenSheet(BuildContext context, Map<String, dynamic> t) {
+    final c = JzColors.of(context);
+    final id = '${t['tokenId'] ?? ''}';
+    final decimals = (t['decimals'] as num?)?.toInt() ?? 0;
+    showJzSheet<void>(
+      context,
+      title: '${t['name'] ?? t['symbol'] ?? ''}',
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Obx(() => JzAmount(w.hideBalance.value ? '••••' : formatToken('${t['balance'] ?? '0'}', decimals), unit: '${t['symbol'] ?? ''}', size: 26)),
+          const Spacer(),
+          JzTag('${t['symbol'] ?? ''}', kind: JzTagKind.accent),
+        ]),
+        gap12,
+        Divider(color: c.border),
+        JzKvCopy('tk_token_id'.tr, id, onOpen: () => launchUrl(Uri.parse('${AppConfig.explorerUrl}/tokens/$id'), mode: LaunchMode.externalApplication)),
+        JzKv('tk_decimals'.tr, '$decimals', mono: true),
+        gap8,
+        Text('tk_receive_note'.tr, style: TextStyle(fontSize: 12.5, color: c.faint, height: 1.4)),
+        gap16,
+        JzPrimaryButton(
+            label: 'tk_send'.tr,
+            icon: Icons.north_east_rounded,
+            onPressed: () {
+              Get.back<void>();
+              Get.to<void>(() => TokenSendPage(initialTokenId: id));
+            }),
+        gap8,
+        JzGhostButton(
+            label: 'receive'.tr,
+            icon: Icons.south_west_rounded,
+            onPressed: () {
+              Get.back<void>();
+              Get.toNamed(Routes.receive);
+            }),
+      ]),
+    );
+  }
+}
+
+/// Activity filter chip (All · Transfers · Rewards).
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.label, required this.on, required this.onTap});
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final c = JzColors.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        decoration: BoxDecoration(
+          color: on ? c.accentWeak : c.surface2,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? c.accent.withValues(alpha: 0.35) : c.border),
+        ),
+        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: on ? c.accent : c.muted)),
+      ),
+    );
   }
 }
 

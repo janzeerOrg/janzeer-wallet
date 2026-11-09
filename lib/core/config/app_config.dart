@@ -9,9 +9,10 @@ class AppConfig {
   static const String promoterDeposit = '2000'; // amount-promoter-tx — NON-REFUNDABLE registration deposit (§5, §10)
   static const String tokenCreateFee = '5'; // fee-create-token-tx — exact flat fee a validator pays to CREATE a token
   static const int maxMemo = 256; // TransferTransactionValidator.MAX_DATA_SIZE
-  /// JZT-1 token screens (Tokens tab, token operations page, token balance reads). OFF for the launch builds
-  /// (owner, 2026-10-01: not tested enough yet); the code stays, flip this to bring them back.
-  static const bool tokensEnabled = false;
+  /// JZT-1 token screens (Tokens tab, send page, issuer operations page, token balance reads). OFF for the launch builds
+  /// (owner, 2026-10-01: not tested enough yet); ON since 1.2.8 — the first real token (DEMO) ran through every operation on
+  /// mainnet on 2026-11-09 (docs/md/test_guide.md).
+  static const bool tokensEnabled = true;
   static const String unit = 'JNZ'; // native-coin ticker (display only)
 
   /// Default node REST base URL (overridable in Settings): the public mainnet API. A first-time user must not
@@ -26,7 +27,7 @@ class AppConfig {
   /// Must equal the `version:` line of pubspec.yaml — About, the update check and the release manifest all read it.
   /// `test/version_consistency_test.dart` fails the build when the two drift (1.2.5 shipped saying "1.2.4" and nagged
   /// its own users about an update, 2026-10-23).
-  static const String appVersion = '1.2.7';
+  static const String appVersion = '1.2.8';
   static const String explorerUrl = 'https://explorer.janzeer.org';
   /// Where the app looks for a newer release (`latest.json`, see core/update): the project's downloads host first,
   /// the wallet's latest GitHub release as the fallback.

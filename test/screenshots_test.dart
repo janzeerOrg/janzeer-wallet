@@ -31,6 +31,7 @@ import 'package:wallet/features/lock/lock_page.dart';
 import 'package:wallet/features/onboarding/onboarding_page.dart';
 import 'package:wallet/features/receive/receive_page.dart';
 import 'package:wallet/features/send/send_page.dart';
+import 'package:wallet/features/tokens/token_send_page.dart';
 import 'package:wallet/features/unlock/unlock_page.dart';
 import 'package:wallet/features/wallet/wallet_controller.dart';
 
@@ -219,5 +220,6 @@ void main() {
         }));
     testWidgets('send $suffix', (t) => shoot(t, 'send_$suffix', const SendPage(initialRecipient: _other, initialAmount: '12.5'), dark: dark, lang: lang));
     testWidgets('receive $suffix', (t) => shoot(t, 'receive_$suffix', const ReceivePage(), dark: dark, lang: lang));
+    testWidgets('token send $suffix', (t) => shoot(t, 'token_send_$suffix', const TokenSendPage(), dark: dark, lang: lang));
   }
 }

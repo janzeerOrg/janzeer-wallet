@@ -7,4 +7,5 @@ abstract class Routes {
   static const receive = '/receive';
   static const validator = '/validator';
   static const tokens = '/tokens';
+  static const tokenSend = '/tokens/send';
 }
