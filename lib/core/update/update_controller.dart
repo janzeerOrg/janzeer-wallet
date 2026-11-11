@@ -110,7 +110,9 @@ class UpdateController extends GetxController {
   @override
   void onReady() {
     super.onReady();
-    unawaited(check());
+    // Every launch asks once (one small GET). The 24-h throttle used to apply here too, and the answer is kept in
+    // memory only: a wallet relaunched within a day of a release showed no banner until the manual check (owner, 2026-11-01).
+    unawaited(check(force: true));
   }
 
   /// The banner on the home screen: an update exists and the user has not said "later" to this very version.
