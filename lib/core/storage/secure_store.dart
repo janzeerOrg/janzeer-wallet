@@ -108,6 +108,13 @@ class SecureStore {
   }
   static set cachedKeys(Map<String, String>? v) =>
       v == null ? _box.remove(_kCachedKeys) : _box.write(_kCachedKeys, jsonEncode(v));
+  /// Wrong-PIN bookkeeping (survives a restart): the count since the last success, and the time before which no attempt
+  /// is accepted. See LockController.unlockWithPin.
+  static int get pinFails => _box.read('pinFails') as int? ?? 0;
+  static set pinFails(int v) => v == 0 ? _box.remove('pinFails') : _box.write('pinFails', v);
+  static int get pinLockedUntil => _box.read('pinLockedUntil') as int? ?? 0;
+  static set pinLockedUntil(int v) => v == 0 ? _box.remove('pinLockedUntil') : _box.write('pinLockedUntil', v);
+
   static String? get pin => _box.read(_kPin) as String?;
   static set pin(String? v) => v == null ? _box.remove(_kPin) : _box.write(_kPin, v);
   static void clearWallet() {

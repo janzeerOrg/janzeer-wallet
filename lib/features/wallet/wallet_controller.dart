@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:get/get.dart';
 
 import 'package:janzeer_sdk/crypto.dart' as jc;
-import 'package:janzeer_sdk/janzeer_sdk.dart' show JanzeerClient, JanzeerException, toPlainNumbers;
+import 'package:janzeer_sdk/janzeer_sdk.dart' show JanzeerClient, JanzeerException, JsonNumber;
 import 'package:janzeer_sdk/vault.dart';
 
 import '../../core/config/app_config.dart';
@@ -18,6 +18,24 @@ Map<String, String> accountFromPrivateKeyIsolate(String privHex) {
 
 /// What a vault holds when the recovery phrase is NOT kept on the device: the private key behind this prefix.
 const String kPrivVaultPrefix = 'priv:';
+
+/// A parsed SDK payload as plain Dart, WITHOUT losing digits: an integer that does not fit a Dart int (a token balance,
+/// supply or cap in base units — 18 decimals pass 2^63 at 9.22 tokens) stays a decimal STRING. The SDK's `toPlainNumbers`
+/// turned it into a double, which printed as "1e+21" and broke every balance check (review 2026-11-11). Fractions stay
+/// doubles and ordinary integers stay ints, as the views expect.
+Object? plainJson(Object? v) {
+  if (v is JsonNumber) {
+    final s = v.toDecimalString();
+    if (!s.contains('.')) {
+      final b = BigInt.parse(s);
+      return b.isValidInt ? b.toInt() : s;
+    }
+    return double.parse(s);
+  }
+  if (v is List<Object?>) return v.map(plainJson).toList();
+  if (v is Map<String, Object?>) return v.map((k, x) => MapEntry(k, plainJson(x)));
+  return v;
+}
 
 /// The wallet's core state + actions. Non-custodial: the mnemonic/private key live only in memory while
 /// unlocked; only the password-encrypted vault is persisted. Mirrors j_frontend/src/store/WalletStore.js.
@@ -60,6 +78,10 @@ class WalletController extends GetxController {
   /// mainnet ("janzeer") and on a testnet ("janzeer-testnet"). Falls back to [AppConfig.networkId] on an older node.
   final networkId = AppConfig.networkId.obs;
 
+  /// null = not asked yet, true = the node answered `/info`, false = it did not. The network id above is only trusted
+  /// while this is true: Settings shows "unreachable" otherwise, and nothing is signed.
+  final Rx<bool?> nodeReachable = Rx<bool?>(null);
+
   /// True when the node runs a testnet faucet (`POST /api/v1/faucet`).
   final hasFaucet = false.obs;
 
@@ -96,15 +118,25 @@ class WalletController extends GetxController {
       final info = await _api.info();
       networkId.value = info.networkId;
       hasFaucet.value = info.faucet;
+      nodeReachable.value = true;
     } catch (_) {
-      networkId.value = AppConfig.networkId;
+      nodeReachable.value = false;
       hasFaucet.value = false;
     }
   }
 
+  /// Before signing: the network id must come from the node this wallet talks to. After a failed `/info` the id used to
+  /// fall back to mainnet for the rest of the session, so a wallet pointed at a testnet node signed mainnet-valid
+  /// transactions and handed them to that node (review 2026-11-11). Ask again; refuse when the node stays silent.
+  Future<void> _ensureNetwork() async {
+    if (nodeReachable.value == true) return;
+    await _loadNodeInfo();
+    if (nodeReachable.value != true) throw 'node_unreachable'.tr;
+  }
+
   /// Testnet faucet drip to this wallet's address; returns the transfer hash.
   Future<String> requestFaucet() async {
-    final res = await _guard(() => _api.post('faucet', {'address': address.value}).then(toPlainNumbers));
+    final res = await _guard(() => _api.post('faucet', {'address': address.value}).then(plainJson));
     return (res as Map)['hash'] as String;
   }
 
@@ -125,7 +157,7 @@ class WalletController extends GetxController {
   Future<Map<String, dynamic>> _map(String path, {Map<String, Object?>? query, Map<String, dynamic> empty = const {'total': 0, 'list': []}}) =>
       _guard(() async {
         final v = await _api.get(path, query: query, notFound: null);
-        return v == null ? Map<String, dynamic>.from(empty) : Map<String, dynamic>.from(toPlainNumbers(v) as Map);
+        return v == null ? Map<String, dynamic>.from(empty) : Map<String, dynamic>.from(plainJson(v) as Map);
       });
 
   /// Apply a derived account. Keys come back from the derivation isolate as a plain {priv,pub,address} map.
@@ -261,15 +293,25 @@ class WalletController extends GetxController {
         .toList();
     tokens.assignAll(regList);
     final defs = {for (final t in regList) t['tokenId'] as String: t};
-    tokenBalances.assignAll(((tb['list'] as List?) ?? []).map((e) {
-      final b = Map<String, dynamic>.from(e as Map);
+    final held = ((tb['list'] as List?) ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // A held token outside the first registry page: ask for its definition. Defaulting the decimals to 0 scaled every
+    // amount of that token wrongly; with no definition the token is listed but cannot be sent (decimals stay null).
+    for (final b in held) {
+      final id = b['tokenId'] as String;
+      if (defs.containsKey(id)) continue;
+      try {
+        final v = await _api.get('tokens/$id', notFound: null);
+        if (v != null) defs[id] = Map<String, dynamic>.from(plainJson(v) as Map);
+      } catch (_) {/* stays unknown */}
+    }
+    tokenBalances.assignAll(held.map((b) {
       final d = defs[b['tokenId']] ?? const {};
       return <String, dynamic>{
         'tokenId': b['tokenId'],
         'balance': '${b['balance']}',
         'symbol': d['symbol'] ?? '',
         'name': d['name'] ?? '',
-        'decimals': d['decimals'] ?? 0,
+        'decimals': d['decimals'],
       };
     }).toList());
     } catch (_) {
@@ -317,6 +359,7 @@ class WalletController extends GetxController {
   /// Signs and submits a transfer; returns the tx hash the node accepted (for the Sent screen / explorer link).
   Future<String?> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
     _ensureUnlocked();
+    await _ensureNetwork();
     final nonce = await _guard(() => _api.nonce(address.value));
     // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
     final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
@@ -341,6 +384,7 @@ class WalletController extends GetxController {
   /// pending list; `tx['nonce']` is reported by node 0.1.0+.
   Future<void> speedUpTransfer(Map<String, dynamic> tx, String newFee) async {
     _ensureUnlocked();
+    await _ensureNetwork();
     final nonce = tx['nonce'];
     if (nonce == null) throw 'speed_up_unsupported'.tr;
     if (!((double.tryParse(newFee) ?? 0) > (double.tryParse('${tx['fee']}') ?? 0))) throw 'speed_up_fee_low'.tr;
@@ -364,6 +408,7 @@ class WalletController extends GetxController {
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
   Future<void> registerPromoter(String promoterKey) async {
     _ensureUnlocked();
+    await _ensureNetwork();
     final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedPromoterIsolate, <String, Object?>{
       'networkId': networkId.value,
@@ -378,6 +423,7 @@ class WalletController extends GetxController {
   /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
   Future<void> exitPromoter(String promoterKey) async {
     _ensureUnlocked();
+    await _ensureNetwork();
     final nonce = await _guard(() => _api.nonce(address.value));
     final body = await compute(jc.buildSignedExitPromoterIsolate, <String, Object?>{
       'networkId': networkId.value,
@@ -404,6 +450,7 @@ class WalletController extends GetxController {
     String? fee,
   }) async {
     _ensureUnlocked();
+    await _ensureNetwork();
     final n = await _guard(() => _api.nonce(address.value));
     final feeStr = (fee == null || fee.trim().isEmpty)
         ? (op == jc.TokenOp.create ? AppConfig.tokenCreateFee : AppConfig.minimumFee)
@@ -415,7 +462,7 @@ class WalletController extends GetxController {
       'op': op, 'tokenId': tokenId, 'symbol': symbol, 'name': name, 'decimals': decimals,
       'cap': cap, 'amount': amount, 'recipient': recipient, 'privHex': _priv,
     });
-    final res = await _guard(() => _api.post('transactions/tokens', body).then(toPlainNumbers));
+    final res = await _guard(() => _api.post('transactions/tokens', body).then(plainJson));
     await _reloadQuietly();
     return res;
   }
@@ -449,7 +496,7 @@ class WalletController extends GetxController {
   /// responses carry only `blockHash`, so the detail sheet asks for the block to show its height (wallet 1.2.7).
   Future<Map<String, dynamic>?> blockByHash(String hash) => _guard(() async {
         final v = await _api.get('blocks/main/$hash', notFound: null);
-        return v == null ? null : Map<String, dynamic>.from(toPlainNumbers(v) as Map);
+        return v == null ? null : Map<String, dynamic>.from(plainJson(v) as Map);
       });
 
   // Network-wide explorer reads (used by the Explorer tab).

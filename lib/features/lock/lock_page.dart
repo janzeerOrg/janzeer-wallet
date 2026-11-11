@@ -58,6 +58,15 @@ class _LockPageState extends State<LockPage> {
         await Future<void>.delayed(const Duration(milliseconds: 350));
         if (mounted) setState(() => _shake = false);
       }
+    } catch (e) {
+      // a running wait ("try again in N s"), or the PIN lock was removed after too many wrong PINs → password screen
+      if (mounted) setState(() => _pin = '');
+      if ('$e' == 'lock_no_session') {
+        jzToast('lock_no_session'.tr, error: true);
+        _usePassword();
+      } else {
+        jzToast('$e', error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

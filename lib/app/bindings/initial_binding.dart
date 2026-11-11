@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../../core/localization/locale_controller.dart';
+import '../../core/lock/auto_lock.dart';
 import '../../core/lock/lock_controller.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/update/update_controller.dart';
@@ -15,5 +16,6 @@ class InitialBinding extends Bindings {
     Get.put(WalletController(), permanent: true);
     Get.put(LockController(), permanent: true);
     Get.put(UpdateController(), permanent: true);
+    if (!Get.isRegistered<AutoLock>()) Get.put(AutoLock(), permanent: true);
   }
 }

@@ -1,3 +1,7 @@
+import 'package:janzeer_sdk/janzeer_sdk.dart' show isChecksumValid;
+
+export 'package:janzeer_sdk/janzeer_sdk.dart' show isChecksumValid;
+
 /// Display formatting for on-chain amounts (which arrive as exact decimal strings like "1000.00000000").
 /// Groups thousands and trims trailing zeros, keeping the value exact (no float rounding) up to 8 dp.
 ///
@@ -86,4 +90,29 @@ String formatDateTime(dynamic ms) {
   String two(int v) => v.toString().padLeft(2, '0');
   // LRI…PDI keeps the two numeric runs in order inside an RTL layout (otherwise Arabic shows "07:09 2026-10-30").
   return '\u2066${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}\u2069';
+}
+
+
+/// True for a plain positive decimal with at most [decimals] fraction digits ("1.5", "20") — no sign, comma, exponent or
+/// extra digits. Forms check this BEFORE converting: [toBaseUnits] truncates, so "1.999" of a 2-decimal token was shown
+/// as 1.999 on the review sheet and sent as 1.99. With [allowZero] a zero amount passes (a memo-only transfer).
+bool isValidAmount(String human, int decimals, {bool allowZero = false}) {
+  final m = RegExp(r'^(\d+)(?:\.(\d+))?$').firstMatch(human.trim());
+  if (m == null) return false;
+  final frac = m.group(2) ?? '';
+  if (frac.length > decimals) return false;
+  return allowZero || RegExp('[1-9]').hasMatch('${m.group(1)}$frac');
+}
+
+/// A decimal JNZ string as an exact integer of 1e-8 units — for sums and comparisons (doubles cannot: 0.14 + 0.01 > 0.15).
+BigInt scaled8(String human) => BigInt.tryParse(toBaseUnits(human.trim().isEmpty ? '0' : human, 8)) ?? BigInt.zero;
+
+/// The ONE address inside [text] (a pasted string, a scanned `janzeer:pay?…` code), or null. The 40 hex digits must not be
+/// part of a longer hex run — an unanchored match used to take the first 40 digits of a 64-digit hash, or of an address
+/// with a stray character, as the recipient — and a mixed-case address must carry a valid EIP-55 checksum.
+String? extractAddress(String text) {
+  final m = RegExp(r'(?<![0-9a-zA-Z])0x[0-9a-fA-F]{40}(?![0-9a-fA-F])').firstMatch(text);
+  if (m == null) return null;
+  final a = m.group(0)!;
+  return isChecksumValid(a) ? a : null;
 }

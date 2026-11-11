@@ -51,6 +51,8 @@ class LockController extends GetxController {
     SecureStore.cachedKeys = null;
     SecureStore.pin = null;
     SecureStore.cachedPassword = null;
+    SecureStore.pinFails = 0;
+    SecureStore.pinLockedUntil = 0;
     mode.value = 'none';
   }
 
@@ -73,10 +75,37 @@ class LockController extends GetxController {
     return true;
   }
 
+  /// Wrong PINs allowed before a wait is imposed, and before the PIN lock is removed altogether.
+  static const int pinFreeTries = 5;
+  static const int pinMaxTries = 10;
+
   /// Unlock with a PIN. Returns false on a wrong PIN.
+  ///
+  /// The PIN does not encrypt the cached account — it only gates it — so guessing must be made expensive: after
+  /// [pinFreeTries] wrong PINs each further attempt waits (30 s, doubling, up to 15 min; the wait survives a restart),
+  /// and after [pinMaxTries] the cached account is erased and only the wallet PASSWORD opens the vault again
+  /// (review 2026-11-11: there was no limit at all). Throws the `pin_wait` message while a wait is running and
+  /// `lock_no_session` once the PIN lock has been removed.
   Future<bool> unlockWithPin(String pin) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final until = SecureStore.pinLockedUntil;
+    if (until > now) throw 'pin_wait'.trParams({'s': '${((until - now) / 1000).ceil()}'});
     final stored = SecureStore.pin ?? SecureStore.cachedPassword?.split(' ').first;
-    if (stored == null || stored != pin) return false;
+    if (stored == null || stored != pin) {
+      final fails = SecureStore.pinFails + 1;
+      SecureStore.pinFails = fails;
+      if (fails >= pinMaxTries) {
+        disable(); // erases the cached account and the PIN; the password-sealed vault is untouched
+        throw 'lock_no_session';
+      }
+      if (fails >= pinFreeTries) {
+        final waitS = (30 * (1 << (fails - pinFreeTries))).clamp(30, 900);
+        SecureStore.pinLockedUntil = now + waitS * 1000;
+      }
+      return false;
+    }
+    SecureStore.pinFails = 0;
+    SecureStore.pinLockedUntil = 0;
     return _release();
   }
 

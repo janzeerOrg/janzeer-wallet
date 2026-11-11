@@ -27,9 +27,9 @@ class _WalletHomeState extends State<WalletHome> {
   Future<void> _scan() async {
     final code = await Get.to<String>(() => const QrScanPage());
     if (code == null) return;
-    final m = RegExp(r'0x[0-9a-fA-F]{40}').firstMatch(code);
-    if (m == null) return jzToast('invalid_recipient'.tr, error: true);
-    Get.to<void>(() => SendPage(initialRecipient: m.group(0)!, initialAmount: _amountFrom(code)));
+    final a = extractAddress(code);
+    if (a == null) return jzToast('invalid_recipient'.tr, error: true);
+    Get.to<void>(() => SendPage(initialRecipient: a, initialAmount: _amountFrom(code)));
   }
 
   /// `janzeer:pay?…&amount=…` / `…?amount=…` — the request-amount form the receive screen and the payment layer use.

@@ -95,20 +95,22 @@ class _TokensPageState extends State<TokensPage> {
       if (_name.text.trim().isEmpty) return 'tk_need_name'.tr;
       final d = int.tryParse(_decimals.text);
       if (d == null || d < 0 || d > 18) return 'tk_need_decimals'.tr;
-      final c = double.tryParse(_cap.text);
-      if (c == null || c <= 0) return 'tk_need_cap'.tr;
+      if (!isValidAmount(_cap.text, d)) return 'tk_need_cap'.tr;
+      if (_initial.text.trim().isNotEmpty && !isValidAmount(_initial.text, d, allowZero: true)) return 'tk_need_amount'.tr;
       return null;
     }
     if (_tokenId == null || _tokenId!.isEmpty) return 'tk_need_token'.tr;
+    // The decimals must come from the token's own definition — never a default (0 decimals scaled every amount wrongly).
+    final d = _selectedToken?['decimals'] as int?;
+    if (d == null) return 'tk_need_token'.tr;
     if (_op == TokenOp.mint || _op == TokenOp.burn || _op == TokenOp.transfer) {
-      final a = double.tryParse(_amount.text);
-      if (a == null || a <= 0) return 'tk_need_amount'.tr;
+      if (!isValidAmount(_amount.text, d)) return 'tk_need_amount'.tr;
     }
     if (_op == TokenOp.setcap) {
-      final c = double.tryParse(_cap.text);
-      if (c == null || c < 0) return 'tk_need_cap'.tr;
+      if (!isValidAmount(_cap.text, d, allowZero: true)) return 'tk_need_cap'.tr;
     }
-    if (_op == TokenOp.transfer && !RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(_recipient.text.trim())) {
+    final r = _recipient.text.trim();
+    if (_op == TokenOp.transfer && (!RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(r) || !isChecksumValid(r))) {
       return 'tk_need_recipient'.tr;
     }
     return null;
@@ -203,7 +205,7 @@ class _TokensPageState extends State<TokensPage> {
                       ..._wallet.tokenBalances.map((tb) => ListTile(
                             title: Text((tb['symbol'] as String).isEmpty ? '?' : tb['symbol'] as String),
                             subtitle: Text(shortHash(tb['tokenId'] as String), style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
-                            trailing: Text(formatToken(tb['balance'] as String, tb['decimals'] as int), style: const TextStyle(fontWeight: FontWeight.w600)),
+                            trailing: Text(formatToken(tb['balance'] as String, (tb['decimals'] as int?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w600)),
                           )),
                       if (_wallet.tokenBalances.isEmpty)
                         ListTile(title: Text('tk_none'.tr, style: TextStyle(color: Theme.of(context).disabledColor))),

@@ -347,7 +347,7 @@ packages:
       path: "../sdk_dart"
       relative: true
     source: path
-    version: "0.1.5"
+    version: "0.1.7"
   jni:
     dependency: transitive
     description:

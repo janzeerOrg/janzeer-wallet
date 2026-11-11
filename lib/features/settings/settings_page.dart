@@ -117,7 +117,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             gap8,
             Obx(() {
-              final id = wallet.networkId.value;
+              // "OK" only when the node really answered /info — the id below is a compile-time default otherwise
+              final id = wallet.nodeReachable.value == true ? wallet.networkId.value : '';
               return Row(children: [
                 JzTag(id.isEmpty ? 'node_unreachable'.tr : 'node_ok'.tr, kind: id.isEmpty ? JzTagKind.danger : JzTagKind.ok, icon: Icons.circle),
                 const SizedBox(width: 8),

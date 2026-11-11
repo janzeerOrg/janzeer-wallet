@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/responsive/responsive.dart';
+import '../../core/ui/jz.dart';
 import '../wallet/wallet_controller.dart';
 
 /// Register as a validator (non-refundable deposit) or gracefully exit — all client-signed. No delegation or
@@ -42,6 +43,26 @@ class _ValidatorPageState extends State<ValidatorPage> {
     }
   }
 
+  /// The deposit is not refundable: show what is about to be paid and for which key, and send only on an explicit yes.
+  Future<void> _confirmRegister() async {
+    final key = _registerKey.text.trim();
+    final ok = await showJzSheet<bool>(
+      context,
+      title: 'register_confirm_title'.tr,
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('register_confirm_body'.trParams({'deposit': AppConfig.promoterDeposit, 'fee': AppConfig.promoterFee})),
+        const SizedBox(height: 12),
+        SelectableText(key, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+        const SizedBox(height: 16),
+        FilledButton(onPressed: () => Get.back<bool>(result: true), child: Text('register_confirm_btn'.tr)),
+        const SizedBox(height: 8),
+        TextButton(onPressed: () => Get.back<bool>(result: false), child: Text('cancel'.tr)),
+      ]),
+    );
+    if (ok != true) return;
+    await _run('register', () => _wallet.registerPromoter(key), 'submitted'.tr, onOk: _registerKey.clear);
+  }
+
   void _toast(String m) => Get.snackbar('', m, snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
 
   @override
@@ -74,9 +95,7 @@ class _ValidatorPageState extends State<ValidatorPage> {
                       FilledButton.icon(
                         onPressed: _busy.isNotEmpty
                             ? null
-                            : () => _isKey(_registerKey.text)
-                                ? _run('register', () => _wallet.registerPromoter(_registerKey.text), 'submitted'.tr, onOk: _registerKey.clear)
-                                : _toast('invalid_validator_key'.tr),
+                            : () => _isKey(_registerKey.text) ? _confirmRegister() : _toast('invalid_validator_key'.tr),
                         icon: const Icon(Icons.campaign),
                         label: Text('register'.tr),
                       ),

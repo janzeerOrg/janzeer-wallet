@@ -50,17 +50,18 @@ class _TokenSendPageState extends State<TokenSendPage> {
     return null;
   }
 
-  int get _decimals => (_token?['decimals'] as num?)?.toInt() ?? 0;
+  /// null = the token's definition is unknown (never guess 0: amounts would be scaled wrongly)
+  int? get _decimalsOrNull => (_token?['decimals'] as num?)?.toInt();
+  int get _decimals => _decimalsOrNull ?? 0;
   String get _symbol => '${_token?['symbol'] ?? ''}';
   String get _balanceBase => '${_token?['balance'] ?? '0'}';
 
   String? _validate() {
-    if (_token == null) return 'tk_select'.tr;
+    if (_token == null || _decimalsOrNull == null) return 'tk_select'.tr;
     final r = _recipient.text.trim();
-    if (!RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(r)) return 'invalid_recipient'.tr;
+    if (!RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(r) || !isChecksumValid(r)) return 'invalid_recipient'.tr;
     if (r.toLowerCase() == _wallet.address.value.toLowerCase()) return 'invalid_recipient'.tr;
-    final amt = double.tryParse(_amount.text);
-    if (amt == null || amt <= 0) return 'invalid_amount'.tr;
+    if (!isValidAmount(_amount.text, _decimals)) return 'invalid_amount'.tr;
     final base = BigInt.tryParse(toBaseUnits(_amount.text.trim(), _decimals));
     if (base == null || base <= BigInt.zero) return 'invalid_amount'.tr;
     if (base > (BigInt.tryParse(_balanceBase) ?? BigInt.zero)) return 'tk_insufficient'.tr;
@@ -71,17 +72,17 @@ class _TokenSendPageState extends State<TokenSendPage> {
 
   Future<void> _paste() async {
     final d = await Clipboard.getData('text/plain');
-    final m = RegExp(r'0x[0-9a-fA-F]{40}').firstMatch(d?.text ?? '');
-    if (m == null) return jzToast('invalid_recipient'.tr, error: true);
-    setState(() => _recipient.text = m.group(0)!);
+    final a = extractAddress(d?.text ?? '');
+    if (a == null) return jzToast('invalid_recipient'.tr, error: true);
+    setState(() => _recipient.text = a);
   }
 
   Future<void> _scan() async {
     final code = await Get.to<String>(() => const QrScanPage());
     if (code == null) return;
-    final m = RegExp(r'0x[0-9a-fA-F]{40}').firstMatch(code);
-    if (m == null) return jzToast('invalid_recipient'.tr, error: true);
-    setState(() => _recipient.text = m.group(0)!);
+    final a = extractAddress(code);
+    if (a == null) return jzToast('invalid_recipient'.tr, error: true);
+    setState(() => _recipient.text = a);
   }
 
   Future<void> _review() async {
