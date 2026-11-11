@@ -441,8 +441,9 @@ class _TxRow extends StatelessWidget {
     final counterparty = reward ? tx['blockHash'] : (outgoing ? tx['recipientAddress'] : tx['senderAddress']);
     final amount = reward ? tx['reward'] : tx['amount'];
     // rewards are not payments: accent tone + a tag, so a validator's 800 rewards a day never look like receipts
-    final tone = pending ? c.pending : (reward ? c.accent : (outgoing ? c.text : c.ok));
-    final disc = pending ? c.pendingWeak : (reward ? c.accentWeak : (outgoing ? c.surface3 : c.okWeak));
+    // a sent transfer is red — amount, sign and arrow — as a received one is green (owner, 2026-11-11; it was neutral grey)
+    final tone = pending ? c.pending : (reward ? c.accent : (outgoing ? c.danger : c.ok));
+    final disc = pending ? c.pendingWeak : (reward ? c.accentWeak : (outgoing ? c.dangerWeak : c.okWeak));
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -452,7 +453,7 @@ class _TxRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(shape: BoxShape.circle, color: disc),
-            child: Icon(pending ? Icons.hourglass_top_rounded : (reward ? Icons.workspace_premium_rounded : (outgoing ? Icons.north_east_rounded : Icons.south_west_rounded)), size: 18, color: pending ? c.pending : (outgoing ? c.muted : c.ok)),
+            child: Icon(pending ? Icons.hourglass_top_rounded : (reward ? Icons.workspace_premium_rounded : (outgoing ? Icons.north_east_rounded : Icons.south_west_rounded)), size: 18, color: pending ? c.pending : (outgoing ? c.danger : c.ok)),
           ),
           const SizedBox(width: 12),
           Expanded(
