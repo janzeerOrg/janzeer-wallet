@@ -62,6 +62,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   selected: {lock.mode.value},
                   onSelectionChanged: (s) => _changeLock(context, s.first, lock, wallet),
                 )),
+            gap8,
+            // What each choice really protects (review 2026-11-11): the password mode is the only one in which the
+            // key on the device is ENCRYPTED by something the user knows; PIN and biometric only open the app.
+            Obx(() => Text('lock_explain_${lock.mode.value}'.tr, style: TextStyle(fontSize: 12.5, height: 1.35, color: c.muted))),
           ]),
         ),
         gap12,
