@@ -402,7 +402,7 @@ class JzKv extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = JzColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: 110, child: Text(label, style: TextStyle(color: c.muted, fontSize: 13))),
         Expanded(
@@ -418,7 +418,7 @@ class JzKv extends StatelessWidget {
 /// A key/value row for a hash or an address: the value stays on ONE line (head…tail), tap copies the full value,
 /// an optional trailing icon opens it somewhere (the explorer). Replaces the wrapping two-line `JzKv` for long values.
 class JzKvCopy extends StatelessWidget {
-  const JzKvCopy(this.label, this.value, {super.key, this.head = 10, this.tail = 8, this.onOpen});
+  const JzKvCopy(this.label, this.value, {super.key, this.head = 8, this.tail = 6, this.onOpen});
   final String label;
   final String value;
   final int head, tail;
@@ -427,41 +427,67 @@ class JzKvCopy extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = JzColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(children: [
         SizedBox(width: 110, child: Text(label, style: TextStyle(color: c.muted, fontSize: 13))),
         Expanded(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: value.isEmpty
-                  ? null
-                  : () {
-                      Clipboard.setData(ClipboardData(text: value));
-                      jzToast('copied'.tr);
-                    },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Flexible(child: JzMono(shortHash(value, head: head, tail: tail), color: c.text, size: 13.5)),
-                  const SizedBox(width: 6),
-                  Icon(Icons.copy_rounded, size: 14, color: c.muted),
-                  if (onOpen != null) ...[
-                    const SizedBox(width: 2),
-                    IconButton(
-                      onPressed: onOpen,
-                      icon: Icon(Icons.open_in_new_rounded, size: 16, color: c.muted),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      tooltip: 'open_explorer'.tr,
-                    ),
-                  ],
-                ]),
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: value.isEmpty
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: value));
+                        jzToast('copied'.tr);
+                      },
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 0, 6),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    // a hash reads left to right in every language (in Arabic the run was reordered and cut at the wrong end)
+                    Flexible(child: Directionality(textDirection: TextDirection.ltr, child: JzMono(shortHash(value, head: head, tail: tail), color: c.text, size: 13.5))),
+                    const SizedBox(width: 8),
+                    Icon(Icons.copy_rounded, size: 15, color: c.muted),
+                  ]),
+                ),
               ),
             ),
           ),
         ),
+        if (onOpen != null)
+          Tooltip(
+            message: 'open_explorer'.tr,
+            child: InkResponse(
+              onTap: onOpen,
+              radius: 18,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 0, 6),
+                child: Icon(Icons.open_in_new_rounded, size: 16, color: c.muted),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+/// Key/value rows as one bordered card with hairlines between them (the detail sheets).
+class JzKvGroup extends StatelessWidget {
+  const JzKvGroup({super.key, required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) {
+    final c = JzColors.of(context);
+    return Container(
+      decoration: BoxDecoration(color: c.surface2, borderRadius: JzRadius.rMd, border: Border.all(color: c.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.border),
+          children[i],
+        ],
       ]),
     );
   }
@@ -475,12 +501,16 @@ Future<T?> showJzSheet<T>(BuildContext context, {required Widget child, String? 
     isDismissible: dismissible,
     enableDrag: dismissible,
     useSafeArea: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + MediaQuery.viewInsetsOf(ctx).bottom),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (title != null) ...[Text(title, style: Theme.of(ctx).textTheme.titleLarge), const SizedBox(height: 14)],
-        child,
-      ]),
+    builder: (ctx) => ConstrainedBox(
+      // never taller than the screen allows: a long sheet scrolls instead of overflowing (small phones, many rows, a long memo)
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.9),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + MediaQuery.viewInsetsOf(ctx).bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (title != null) ...[Text(title, style: Theme.of(ctx).textTheme.titleLarge), const SizedBox(height: 14)],
+          Flexible(child: SingleChildScrollView(child: child)),
+        ]),
+      ),
     ),
   );
 }

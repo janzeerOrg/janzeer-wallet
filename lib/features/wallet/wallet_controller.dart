@@ -375,7 +375,7 @@ class WalletController extends GetxController {
       'privHex': _priv,
     });
     final r = await _guard(() => _api.post('transactions/transfers', body));
-    await _reloadQuietly();
+    unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
     return r is Map ? (r['hash'] ?? body['hash'])?.toString() : body['hash']?.toString();
   }
 
@@ -402,7 +402,7 @@ class WalletController extends GetxController {
       'privHex': _priv,
     });
     await _guard(() => _api.post('transactions/transfers', body));
-    await _reloadQuietly();
+    unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
   }
 
   /// Register `promoterKey` as a validator, paying the non-refundable deposit. No voting — registration admits.
@@ -417,7 +417,7 @@ class WalletController extends GetxController {
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
     await _guard(() => _api.post('transactions/validators', body)); // the SDK body already carries `validatorKey`
-    await _reloadQuietly();
+    unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
   }
 
   /// Gracefully retire the validator `promoterKey` (removed next epoch; deposit stays non-refundable).
@@ -432,7 +432,7 @@ class WalletController extends GetxController {
       'promoterKey': promoterKey.trim(), 'privHex': _priv,
     });
     await _guard(() => _api.post('transactions/exit-validators', body));
-    await _reloadQuietly();
+    unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
   }
 
   /// Build, sign (background isolate) and submit a TokenTx. `cap`/`amount` are INTEGER BASE-UNIT decimal
@@ -463,7 +463,7 @@ class WalletController extends GetxController {
       'cap': cap, 'amount': amount, 'recipient': recipient, 'privHex': _priv,
     });
     final res = await _guard(() => _api.post('transactions/tokens', body).then(plainJson));
-    await _reloadQuietly();
+    unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
     return res;
   }
 

@@ -299,15 +299,34 @@ class _ActivityPanelState extends State<_ActivityPanel> {
   Widget _heightRow(Map<String, dynamic> tx) {
     if (tx['blockHeight'] != null) return JzKv('height'.tr, '${tx['blockHeight']}', mono: true);
     final hash = '${tx['blockHash'] ?? ''}';
-    if (hash.isEmpty) return const SizedBox.shrink();
+    if (hash.isEmpty) return JzKv('height'.tr, '—', mono: true);
     return FutureBuilder<Map<String, dynamic>?>(
       future: _w.blockByHash(hash).catchError((_) => null),
       builder: (_, snap) {
         if (snap.connectionState != ConnectionState.done) return JzKv('height'.tr, '…', mono: true);
         final h = snap.data?['height'];
-        return h == null ? const SizedBox.shrink() : JzKv('height'.tr, '$h', mono: true);
+        return JzKv('height'.tr, h == null ? '—' : '$h', mono: true);
       },
     );
+  }
+
+  /// The top of a detail sheet: a round direction icon, the amount with the date under it, the status tag.
+  Widget _detailHead({required IconData icon, required Color tone, required Color toneWeak, required String amount, required Color amountColor, required String tag, required JzTagKind kind, dynamic timestamp}) {
+    final c = JzColors.of(context);
+    final date = timestamp == null ? '' : formatDateTime(timestamp);
+    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Container(width: 44, height: 44, decoration: BoxDecoration(color: toneWeak, shape: BoxShape.circle), child: Icon(icon, size: 22, color: tone)),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          // sign, digits and unit stay in reading order in Arabic too ("+2,000 JNZ", not "JNZ 2,000+")
+          FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Directionality(textDirection: TextDirection.ltr, child: JzAmount(amount, unit: AppConfig.unit, size: 26, color: amountColor))),
+          if (date.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(date, style: TextStyle(fontSize: 12.5, color: c.muted, fontFamily: kMono))),
+        ]),
+      ),
+      const SizedBox(width: 10),
+      JzTag(tag, kind: kind),
+    ]);
   }
 
   void _openExplorer(String path) => launchUrl(Uri.parse('${AppConfig.explorerUrl}$path'), mode: LaunchMode.externalApplication);
@@ -320,18 +339,18 @@ class _ActivityPanelState extends State<_ActivityPanel> {
       context,
       title: 'block_reward'.tr,
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          JzAmount('+${prettyAmount('${tx['reward'] ?? '0'}')}', unit: AppConfig.unit, size: 26, color: c.ok),
-          const Spacer(),
-          JzTag('confirmed'.tr, kind: JzTagKind.ok),
-        ]),
+        _detailHead(
+            icon: Icons.workspace_premium_rounded, tone: c.ok, toneWeak: c.okWeak,
+            amount: '+${prettyAmount('${tx['reward'] ?? '0'}')}', amountColor: c.ok,
+            tag: 'confirmed'.tr, kind: JzTagKind.ok, timestamp: tx['timestamp']),
         gap12,
-        Divider(color: c.border),
         Text('block_reward_note'.tr, style: TextStyle(fontSize: 13, color: c.muted, height: 1.45)),
         gap12,
-        if (block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
-        _heightRow(tx),
-        if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
+        JzKvGroup(children: [
+          if (block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
+          _heightRow(tx),
+          if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
+        ]),
         gap16,
         JzGhostButton(label: 'done'.tr, onPressed: () => Get.back<void>()),
       ]),
@@ -346,25 +365,38 @@ class _ActivityPanelState extends State<_ActivityPanel> {
     final other = '${outgoing ? tx['recipientAddress'] : tx['senderAddress']}';
     final hash = '${tx['hash'] ?? ''}';
     final block = '${tx['blockHash'] ?? ''}';
+    final memo = '${tx['data'] ?? ''}';
     showJzSheet<void>(
       context,
       title: outgoing ? 'send'.tr : 'receive'.tr,
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          JzAmount('${outgoing ? '−' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')}', unit: AppConfig.unit, size: 26, color: outgoing ? c.text : c.ok),
-          const Spacer(),
-          JzTag(pending ? 'pending'.tr : 'confirmed'.tr, kind: pending ? JzTagKind.pending : JzTagKind.ok),
+        _detailHead(
+            icon: pending ? Icons.hourglass_top_rounded : (outgoing ? Icons.north_east_rounded : Icons.south_west_rounded),
+            tone: pending ? c.pending : (outgoing ? c.accent : c.ok),
+            toneWeak: pending ? c.pendingWeak : (outgoing ? c.accentWeak : c.okWeak),
+            amount: '${outgoing ? '−' : '+'}${prettyAmount('${tx['amount'] ?? '0'}')}', amountColor: outgoing ? c.text : c.ok,
+            tag: pending ? 'pending'.tr : 'confirmed'.tr, kind: pending ? JzTagKind.pending : JzTagKind.ok, timestamp: tx['timestamp']),
+        gap16,
+        JzKvGroup(children: [
+          JzKvCopy(outgoing ? 'recipient'.tr : 'sender'.tr, other, onOpen: () => _openExplorer('/address/$other')),
+          JzKv('fee'.tr, '\u2066${tx['fee'] ?? ''} ${AppConfig.unit}\u2069', mono: true),
+          if (tx['nonce'] != null) JzKv('nonce'.tr, '${tx['nonce']}', mono: true),
+          if (!pending && block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
+          if (!pending) _heightRow(tx),
+          if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
         ]),
-        gap12,
-        Divider(color: c.border),
-        JzKvCopy(outgoing ? 'recipient'.tr : 'sender'.tr, other, onOpen: () => _openExplorer('/address/$other')),
-        JzKv('fee'.tr, '${tx['fee'] ?? ''} ${AppConfig.unit}', mono: true),
-        if ((tx['data'] ?? '').toString().isNotEmpty) JzKv('memo_label'.tr, '${tx['data']}'),
-        if (tx['nonce'] != null) JzKv('nonce'.tr, '${tx['nonce']}', mono: true),
-        if (tx['timestamp'] != null) JzKv('date'.tr, formatDateTime(tx['timestamp']), mono: true),
-        if (!pending && block.isNotEmpty) JzKvCopy('block'.tr, block, onOpen: () => _openExplorer('/block/$block')),
-        if (!pending) _heightRow(tx),
-        if (hash.isNotEmpty) JzKvCopy('tx_hash'.tr, hash, onOpen: () => _openExplorer('/tx/$hash')),
+        if (memo.isNotEmpty) ...[
+          gap12,
+          Container(
+            decoration: BoxDecoration(color: c.surface2, borderRadius: JzRadius.rMd, border: Border.all(color: c.border)),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('memo_label'.tr, style: TextStyle(color: c.muted, fontSize: 12.5)),
+              const SizedBox(height: 4),
+              SelectableText(memo, style: TextStyle(color: c.text, fontSize: 14, height: 1.4)),
+            ]),
+          ),
+        ],
         gap16,
         if (pending && outgoing && tx['nonce'] != null)
           JzPrimaryButton(
