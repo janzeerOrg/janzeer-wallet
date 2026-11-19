@@ -85,6 +85,30 @@ class _SendPageState extends State<SendPage> {
     if (err != null) return jzToast(err, error: true);
     final c = JzColors.of(context);
     final amount = _amount.text.trim().isEmpty ? '0' : _amount.text.trim();
+    // A transfer of 0 is valid when it carries a memo (a note on the chain), but it is also what a slip looks like:
+    // the amount typed into the memo field. Ask once before the review.
+    if (scaled8(amount) == BigInt.zero) {
+      final go = await showJzSheet<bool>(
+        context,
+        title: 'zero_amount_title'.trParams({'unit': AppConfig.unit}),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            decoration: BoxDecoration(color: c.pendingWeak, borderRadius: JzRadius.rMd),
+            padding: const EdgeInsets.all(14),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline_rounded, size: 20, color: c.pending),
+              const SizedBox(width: 10),
+              Expanded(child: Text('zero_amount_note'.trParams({'unit': AppConfig.unit}), style: TextStyle(fontSize: 13.5, color: c.text, height: 1.45))),
+            ]),
+          ),
+          gap16,
+          JzPrimaryButton(label: 'zero_amount_continue'.tr, icon: Icons.arrow_forward_rounded, onPressed: () => Get.back<bool>(result: true)),
+          gap8,
+          JzGhostButton(label: 'zero_amount_back'.tr, onPressed: () => Get.back<bool>(result: false)),
+        ]),
+      );
+      if (go != true || !mounted) return;
+    }
     final total = fromBaseUnits((scaled8(amount) + scaled8(_fee.text)).toString(), 8);
     final ok = await showJzSheet<bool>(
       context,
