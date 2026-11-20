@@ -29,6 +29,7 @@ class _SendPageState extends State<SendPage> {
   final _fee = TextEditingController(text: AppConfig.minimumFee);
   final _memo = TextEditingController();
   bool _busy = false;
+  Future<int>? _nonceAhead;   // fetched while the review sheet is open
 
   @override
   void dispose() {
@@ -84,6 +85,7 @@ class _SendPageState extends State<SendPage> {
     final err = _validate();
     if (err != null) return jzToast(err, error: true);
     final c = JzColors.of(context);
+    _nonceAhead = _wallet.prefetchNonce();
     final amount = _amount.text.trim().isEmpty ? '0' : _amount.text.trim();
     // A transfer of 0 is valid when it carries a memo (a note on the chain), but it is also what a slip looks like:
     // the amount typed into the memo field. Ask once before the review.
@@ -141,6 +143,7 @@ class _SendPageState extends State<SendPage> {
         amount: _amount.text.isEmpty ? '0' : _amount.text,
         fee: _fee.text,
         data: _memo.text,
+        nonceAhead: _nonceAhead,
       );
       _recipient.clear();
       _amount.clear();

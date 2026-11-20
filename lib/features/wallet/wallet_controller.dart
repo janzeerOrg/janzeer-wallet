@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:get/get.dart';
 
 import 'package:janzeer_sdk/crypto.dart' as jc;
-import 'package:janzeer_sdk/janzeer_sdk.dart' show JanzeerClient, JanzeerException, JsonNumber;
+import 'package:janzeer_sdk/janzeer_sdk.dart' show JanzeerClient, JanzeerException, JsonNumber, NonceMismatchException;
 import 'package:janzeer_sdk/vault.dart';
 
 import '../../core/config/app_config.dart';
@@ -356,25 +356,44 @@ class WalletController extends GetxController {
 
   int get _now => DateTime.now().millisecondsSinceEpoch;
 
+  /// The next nonce, fetched while the user reads the review sheet so that Confirm costs one round trip, not two.
+  /// Never throws: -1 means "ask again when sending".
+  Future<int> prefetchNonce() => _api.nonce(address.value).then((n) => n, onError: (_) => -1);
+
   /// Signs and submits a transfer; returns the tx hash the node accepted (for the Sent screen / explorer link).
-  Future<String?> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data}) async {
+  /// The wallet waits only for the node to ACCEPT the transaction (it can refuse it, and the user must see why), never
+  /// for the block: the Sent sheet says it becomes final in about 15 s and the activity list shows it as Pending.
+  Future<String?> sendTransfer({required String recipientAddress, required String amount, String? fee, String? data, Future<int>? nonceAhead}) async {
     _ensureUnlocked();
     await _ensureNetwork();
-    final nonce = await _guard(() => _api.nonce(address.value));
+    var nonce = nonceAhead == null ? -1 : await nonceAhead;
+    if (nonce < 0) nonce = await _guard(() => _api.nonce(address.value));
     // ECDSA signing runs on a background isolate so Send doesn't block the UI thread. (wallet freeze fix)
-    final body = await compute(jc.buildSignedTransferIsolate, <String, Object?>{
-      'networkId': networkId.value,
-      'timestamp': _now,
-      'fee': (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
-      'nonce': nonce,
-      'senderAddress': address.value,
-      'publicKey': _pub,
-      'recipientAddress': recipientAddress.trim(),
-      'amount': amount,
-      'data': (data != null && data.isNotEmpty) ? data : null,
-      'privHex': _priv,
-    });
-    final r = await _guard(() => _api.post('transactions/transfers', body));
+    Future<Map<String, Object?>> sign(int n) => compute(jc.buildSignedTransferIsolate, <String, Object?>{
+          'networkId': networkId.value,
+          'timestamp': _now,
+          'fee': (fee == null || fee.trim().isEmpty) ? AppConfig.minimumFee : fee,
+          'nonce': n,
+          'senderAddress': address.value,
+          'publicKey': _pub,
+          'recipientAddress': recipientAddress.trim(),
+          'amount': amount,
+          'data': (data != null && data.isNotEmpty) ? data : null,
+          'privHex': _priv,
+        });
+    var body = await sign(nonce);
+    Object? r;
+    try {
+      r = await _api.post('transactions/transfers', body);
+    } on NonceMismatchException catch (e) {
+      // The nonce read before the review went stale (another transaction from this address in between): the node refused
+      // the transaction, so nothing was sent. Sign once more with the nonce the node expects.
+      final int fresh = e.expected ?? await _guard<int>(() => _api.nonce(address.value));
+      body = await sign(fresh);
+      r = await _guard(() => _api.post('transactions/transfers', body));
+    } on JanzeerException catch (e) {
+      throw Exception(e.message);
+    }
     unawaited(_reloadQuietly());   // the send is done: refresh in the background, do not hold the Sent screen for it
     return r is Map ? (r['hash'] ?? body['hash'])?.toString() : body['hash']?.toString();
   }
